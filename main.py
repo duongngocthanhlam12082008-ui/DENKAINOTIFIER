@@ -1967,17 +1967,34 @@ async def payment_check(interaction: discord.Interaction, ref: str):
 @app_commands.describe(ref="Payment Reference Code To Confirm")
 @is_owner()
 async def payment_confirm(interaction: discord.Interaction, ref: str):
-    d = _gdata(interaction.guild_id)
-    p = d["payments"].get(ref.upper())
-    if not p:
-        return await interaction.response.send_message(f"Payment `{ref}` Not Found.", ephemeral=True)
+    d        = _gdata(interaction.guild_id)
+    ref_up   = ref.strip().upper()
+    payments = d["payments"]
+
+    # Case-insensitive search
+    matched_key = next((k for k in payments if k.upper() == ref_up), None)
+
+    if not matched_key:
+        pending_refs = [k for k, v in payments.items() if v["status"] == "pending"]
+        hint = (
+            "\n\n**Pending Payments:** " + ", ".join(f"`{r}`" for r in pending_refs[:10])
+            if pending_refs else "\n\n**No Pending Payments Found In This Server.**"
+        )
+        return await interaction.response.send_message(
+            f"Payment `{ref_up}` Not Found.{hint}", ephemeral=True
+        )
+
+    p = payments[matched_key]
     if p["status"] != "pending":
         return await interaction.response.send_message(
-            f"Payment Is Already **{p['status'].upper()}**.", ephemeral=True
+            f"Payment `{matched_key}` Is Already **{p['status'].upper()}**.", ephemeral=True
         )
-    _payment_confirm(interaction.guild_id, ref.upper(), "MANUAL")
-    await _notify_payment_confirmed(interaction.guild_id, ref.upper())
-    await interaction.response.send_message(f"Payment `{ref}` Confirmed Manually.", ephemeral=True)
+
+    _payment_confirm(interaction.guild_id, matched_key, "MANUAL")
+    await _notify_payment_confirmed(interaction.guild_id, matched_key)
+    await interaction.response.send_message(
+        f"Payment `{matched_key}` Confirmed Manually. ✅", ephemeral=True
+    )
 
 
 @payment_grp.command(name="cancel", description="Cancel A Pending Payment (Owner Only)")
