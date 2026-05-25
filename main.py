@@ -269,6 +269,7 @@ _CONFIG_KEYS = {
     "welcome_news", "veri_enabled", "veri_channel", "veri_role_id",
     "veri_grant_id", "pay_bank_id", "pay_account_no", "pay_account_name",
     "pay_casso_key", "pay_log_channel", "pay_confirm_role", "pay_timeout",
+    "pay_announce_channel",
 }
 
 _STORE: dict[int, dict] = {}
@@ -673,9 +674,92 @@ async def on_ready():
         payment_checker.start()
     if not payment_expiry.is_running():
         payment_expiry.start()
+    if not daily_summary_task.is_running():
+        daily_summary_task.start()
     log.info(
         "Logged In As %s  |  Guilds: %d  |  Owner ID: %d",
         bot.user, len(bot.guilds), OWNER_ID,
+    )
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Payment Daily Summary Helper
+# ═══════════════════════════════════════════════════════════════════════════════
+
+async def _send_daily_summary(
+    guild_id:   int,
+    channel_id: int,
+    *,
+    note:  str | None = None,
+    actor: str        = "Auto",
+) -> None:
+    """Build and send the daily payment summary to a channel."""
+    guild = bot.get_guild(guild_id)
+    if not guild:
+        return
+    channel = guild.get_channel(channel_id)
+    if not channel:
+        return
+
+    d        = _gdata(guild_id)
+    now      = time.time()
+    today_ts = now - 86400  # Last 24 hours
+
+    confirmed = [
+        (ref, p) for ref, p in d["payments"].items()
+        if p["status"] == "confirmed"
+        and p.get("confirmed_at", 0) >= today_ts
+    ]
+    confirmed.sort(key=lambda x: x[1].get("confirmed_at", 0))
+
+    date_str  = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+    ts_now    = int(now)
+    note_line = f"\n\n**Note:** {note}" if note else ""
+
+    if not confirmed:
+        await _v2_send(channel, [  # type: ignore
+            _container(
+                _text(f"## 💰 Daily Payment Summary — {date_str}"),
+                _separator(),
+                _text(
+                    f"**Total Payments:** 0\n"
+                    f"**Total Revenue:** `0 VND`\n\n"
+                    f"No Confirmed Payments In The Last 24 Hours."
+                    f"{note_line}"
+                ),
+                _separator(),
+                _text(f"-# Auto-Generated At 00:00  —  <t:{ts_now}:F>"),
+            )
+        ])
+        return
+
+    total_vnd = sum(p["amount"] for _, p in confirmed)
+    rows      = []
+    for ref, p in confirmed:
+        payer   = guild.get_member(p["user_id"])
+        p_str   = payer.mention if payer else f"<@{p['user_id']}>"
+        conf_ts = int(p.get("confirmed_at", p["created_at"]))
+        rows.append(f"✅ `{ref}` — **{p['amount']:,} VND** — {p_str} — <t:{conf_ts}:t>")
+
+    await _v2_send(channel, [  # type: ignore
+        _container(
+            _text(f"## 💰 Daily Payment Summary — {date_str}"),
+            _separator(),
+            _text(
+                f"**Total Payments:** {len(confirmed)}\n"
+                f"**Total Revenue:** `{total_vnd:,} VND`"
+                f"{note_line}"
+            ),
+            _separator(),
+            _text("\n".join(rows)),
+            _separator(),
+            _text(f"-# Auto-Generated At 00:00  —  <t:{ts_now}:F>"),
+        )
+    ])
+    log.info(
+        "Daily summary sent to #%s — %d payments — %s VND — by %s",
+        channel, len(confirmed), total_vnd, actor,
     )
 
 
@@ -738,6 +822,30 @@ async def payment_expiry():
 @payment_expiry.before_loop
 async def before_expiry():
     await bot.wait_until_ready()
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Background Task — Daily 12:00 Payment Summary
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@tasks.loop(minutes=1)
+async def daily_summary_task():
+    """Fire at 00:00 UTC+7 (17:00 UTC) every day."""
+    now_utc7 = datetime.now(timezone.utc).astimezone(
+        __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Asia/Ho_Chi_Minh")
+    )
+    if now_utc7.hour != 0 or now_utc7.minute != 0:
+        return
+    for guild_id, gd in list(_STORE.items()):
+        ch_id = gd.get("pay_announce_channel")
+        if not ch_id:
+            continue
+        await _send_daily_summary(guild_id, ch_id, actor="Daily Auto-Task")
+
+@daily_summary_task.before_loop
+async def before_daily():
+    await bot.wait_until_ready()
+
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1937,73 +2045,9 @@ async def payment_list(interaction: discord.Interaction, status: str = "all"):
     ])
 
 
-@payment_grp.command(name="announce", description="Announce A Confirmed Payment To A Channel")
+@payment_grp.command(name="announce_all", description="Manually Send Daily Payment Summary To A Channel")
 @app_commands.describe(
-    ref="Payment Reference Code (e.g. PAYAB1234)",
-    channel="Channel To Send The Announcement (Optional, Defaults To Current Channel)",
-    note="Extra Note To Include In The Announcement (Optional)",
-)
-@is_owner()
-async def payment_announce(
-    interaction: discord.Interaction,
-    ref:         str,
-    channel:     Optional[discord.TextChannel] = None,
-    note:        Optional[str]                 = None,
-):
-    await interaction.response.defer(ephemeral=True, thinking=True)
-    d = _gdata(interaction.guild_id)
-    p = d["payments"].get(ref.upper())
-
-    if not p:
-        return await interaction.followup.send(f"Payment `{ref}` Not Found.", ephemeral=True)
-    if p["status"] != "confirmed":
-        return await interaction.followup.send(
-            f"Payment `{ref}` Is Not Confirmed Yet — Status: **{p['status'].upper()}**.",
-            ephemeral=True,
-        )
-
-    target_ch = channel or interaction.channel
-    guild     = interaction.guild
-    payer     = guild.get_member(p["user_id"])
-    ts_pay    = int(p.get("confirmed_at") or p["created_at"])
-    ts_now    = int(time.time())
-    icon_url  = (
-        payer.display_avatar.with_size(256).url
-        if payer
-        else "https://cdn.discordapp.com/embed/avatars/0.png"
-    )
-    payer_str = payer.mention if payer else f"<@{p['user_id']}>"
-    note_line = f"\n**Note:** {note}" if note else ""
-
-    await _v2_send(target_ch, [  # type: ignore
-        _container(
-            _text("## ✅ Payment Received"),
-            _separator(),
-            _section(
-                f"**Payer:** {payer_str}\n"
-                f"**Amount:** `{p['amount']:,} VND`\n"
-                f"**Reference:** `{ref.upper()}`\n"
-                f"**Description:** {p['description']}\n"
-                f"**Bank:** `{d.get('pay_bank_id', 'N/A')}` — `{d.get('pay_account_no', 'N/A')}`\n"
-                f"**TX ID:** `{p.get('confirmed_by_tx', 'N/A')}`\n"
-                f"**Confirmed:** <t:{ts_pay}:F>"
-                f"{note_line}",
-                icon_url,
-            ),
-            _separator(),
-            _text(f"-# Announced By {interaction.user.mention}  —  <t:{ts_now}:R>"),
-        )
-    ])
-
-    await interaction.followup.send(
-        f"Payment `{ref.upper()}` Announced In {target_ch.mention}.", ephemeral=True
-    )
-    log.info("Payment %s announced to #%s by %s", ref.upper(), target_ch, interaction.user)
-
-
-@payment_grp.command(name="announce_all", description="Announce All Confirmed Payments From Today")
-@app_commands.describe(
-    channel="Channel To Send The Announcement",
+    channel="Channel To Send The Summary (Also Saves As Auto-Announce Channel)",
     note="Extra Note To Include (Optional)",
 )
 @is_owner()
@@ -2013,56 +2057,18 @@ async def payment_announce_all(
     note:        Optional[str] = None,
 ):
     await interaction.response.defer(ephemeral=True, thinking=True)
-    d        = _gdata(interaction.guild_id)
-    guild    = interaction.guild
-    now      = time.time()
-    today_ts = now - 86400  # Last 24 hours
+    d = _gdata(interaction.guild_id)
 
-    confirmed = [
-        (ref, p) for ref, p in d["payments"].items()
-        if p["status"] == "confirmed"
-        and p.get("confirmed_at", 0) >= today_ts
-    ]
-    confirmed.sort(key=lambda x: x[1].get("confirmed_at", 0))
+    # Save this channel as the auto-announce channel for daily 12:00 task
+    d["pay_announce_channel"] = channel.id
+    _save_data()
 
-    if not confirmed:
-        return await interaction.followup.send(
-            "No Confirmed Payments In The Last 24 Hours.", ephemeral=True
-        )
-
-    total_vnd = sum(p["amount"] for _, p in confirmed)
-    rows      = []
-    for ref, p in confirmed:
-        payer   = guild.get_member(p["user_id"])
-        p_str   = payer.mention if payer else f"<@{p['user_id']}>"
-        conf_ts = int(p.get("confirmed_at", p["created_at"]))
-        rows.append(
-            f"✅ `{ref}` — **{p['amount']:,} VND** — {p_str} — <t:{conf_ts}:t>"
-        )
-
-    note_line = f"\n\n**Note:** {note}" if note else ""
-    ts_now    = int(now)
-
-    await _v2_send(channel, [
-        _container(
-            _text(f"## 💰 Payment Summary — Last 24 Hours"),
-            _separator(),
-            _text(
-                f"**Total Payments:** {len(confirmed)}\n"
-                f"**Total Revenue:** `{total_vnd:,} VND`"
-                f"{note_line}"
-            ),
-            _separator(),
-            _text("\n".join(rows)),
-            _separator(),
-            _text(f"-# Announced By {interaction.user.mention}  —  <t:{ts_now}:R>"),
-        )
-    ])
-
+    await _send_daily_summary(interaction.guild_id, channel.id, note=note, actor=str(interaction.user))
     await interaction.followup.send(
-        f"Summary Of {len(confirmed)} Payment(s) Announced In {channel.mention}.", ephemeral=True
+        f"Summary Sent To {channel.mention}.\n"
+        f"-# This Channel Is Now Set As The Daily 12:00 Auto-Announce Channel.",
+        ephemeral=True,
     )
-    log.info("Payment summary announced by %s — %d payments", interaction.user, len(confirmed))
 
 
 @payment_grp.command(name="info", description="Show Current Payment System Configuration")
