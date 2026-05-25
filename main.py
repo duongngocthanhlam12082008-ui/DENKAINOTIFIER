@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import logging
 import os
+import pathlib
 import random
 import string
 import time
@@ -253,41 +255,94 @@ async def _v2_edit_msg(channel_id: int, message_id: int, components: list[dict])
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  In-Memory Store
+#  Persistent Store  —  Auto-Save To data.json On Every Change
 # ═══════════════════════════════════════════════════════════════════════════════
+
+DATA_FILE = pathlib.Path("data.json")
+
+# Keys that are config-level (survive restart).
+# "tickets" and "payments" are runtime-only; pending ones are lost on restart
+# intentionally (payment QR messages would be stale anyway).
+_CONFIG_KEYS = {
+    "ticket_category", "log_channel", "support_role", "panel_channel",
+    "counter", "welcome_channel", "welcome_purchase", "welcome_rules",
+    "welcome_news", "veri_enabled", "veri_channel", "veri_role_id",
+    "veri_grant_id", "pay_bank_id", "pay_account_no", "pay_account_name",
+    "pay_casso_key", "pay_log_channel", "pay_confirm_role", "pay_timeout",
+}
 
 _STORE: dict[int, dict] = {}
 
+_DEFAULTS: dict = {
+    "ticket_category":  None,
+    "log_channel":      None,
+    "support_role":     None,
+    "panel_channel":    None,
+    "counter":          0,
+    "tickets":          {},
+    "welcome_channel":  None,
+    "welcome_purchase": None,
+    "welcome_rules":    None,
+    "welcome_news":     None,
+    "veri_enabled":     False,
+    "veri_channel":     None,
+    "veri_role_id":     None,
+    "veri_grant_id":    None,
+    "pay_bank_id":      "ICB",
+    "pay_account_no":   "0907617630",
+    "pay_account_name": "NGUYEN VAN A",
+    "pay_casso_key":    None,
+    "pay_log_channel":  None,
+    "pay_confirm_role": None,
+    "pay_timeout":      600,
+    "payments":         {},
+}
+
+
+def _load_data() -> None:
+    """Load persisted config from data.json into _STORE on startup."""
+    global _STORE
+    if not DATA_FILE.exists():
+        log.info("No data.json found — starting fresh.")
+        return
+    try:
+        raw = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+        for gid_str, saved in raw.items():
+            gid = int(gid_str)
+            d   = dict(_DEFAULTS)
+            # Restore only config keys — runtime keys (tickets, payments) start fresh
+            for k in _CONFIG_KEYS:
+                if k in saved:
+                    d[k] = saved[k]
+            _STORE[gid] = d
+        log.info("Loaded data.json — %d guild(s) restored.", len(_STORE))
+    except Exception as e:
+        log.error("Failed to load data.json: %s", e)
+
+
+def _save_data() -> None:
+    """Persist config to data.json. Called after every setup change."""
+    try:
+        out: dict = {}
+        for gid, d in _STORE.items():
+            out[str(gid)] = {k: d[k] for k in _CONFIG_KEYS if k in d}
+        DATA_FILE.write_text(
+            json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except Exception as e:
+        log.error("Failed to save data.json: %s", e)
+
+
 def _gdata(guild_id: int) -> dict:
-    return _STORE.setdefault(guild_id, {
-        "ticket_category":  None,
-        "log_channel":      None,
-        "support_role":     None,
-        "panel_channel":    None,
-        "counter":          0,
-        "tickets":          {},
-        "welcome_channel":  None,
-        "welcome_purchase": None,
-        "welcome_rules":    None,
-        "welcome_news":     None,
-        "veri_enabled":     False,
-        "veri_channel":     None,
-        "veri_role_id":     None,
-        "veri_grant_id":    None,
-        # ── Payment ──────────────────────────────────────────────────────────
-        "pay_bank_id":      "ICB",           # Vietinbank VietQR code
-        "pay_account_no":   "0907617630",    # STK Vietinbank
-        "pay_account_name": "NGUYEN VAN A",  # Doi thanh ten chu TK that
-        "pay_casso_key":    None,             # Casso API key for auto-confirm
-        "pay_log_channel":  None,             # Channel to log confirmed payments
-        "pay_confirm_role": None,             # Role to ping on confirm (optional)
-        "pay_timeout":      600,              # Seconds before payment expires (default 10 min)
-        "payments":         {},               # { ref_code: payment_data }
-    })
+    if guild_id not in _STORE:
+        _STORE[guild_id] = dict(_DEFAULTS)
+    return _STORE[guild_id]
+
 
 def _next_id(guild_id: int) -> str:
     d = _gdata(guild_id)
     d["counter"] += 1
+    _save_data()
     return f"{d['counter']:04d}"
 
 
@@ -532,44 +587,7 @@ class ConfirmCloseView(discord.ui.View):
 #  UI — Payment Cancel Button
 # ═══════════════════════════════════════════════════════════════════════════════
 
-class PaymentView(discord.ui.View):
-    def __init__(self, ref: str, guild_id: int):
-        super().__init__(timeout=None)
-        self.ref      = ref
-        self.guild_id = guild_id
-
-    @discord.ui.button(
-        label="Cancel Payment",
-        style=discord.ButtonStyle.danger,
-        custom_id="payment:cancel",
-    )
-    async def cancel_payment(self, interaction: discord.Interaction, btn: discord.ui.Button):
-        p = _payment_get(self.guild_id, self.ref)
-        if not p:
-            return await interaction.response.send_message("Payment Not Found.", ephemeral=True)
-        if p["status"] != "pending":
-            return await interaction.response.send_message(
-                f"Payment Is Already **{p['status'].upper()}**.", ephemeral=True
-            )
-        if p["user_id"] != interaction.user.id and interaction.user.id != OWNER_ID:
-            return await interaction.response.send_message(
-                "Only The Payment Owner Can Cancel This.", ephemeral=True
-            )
-        _payment_expire(self.guild_id, self.ref)
-        btn.disabled = True
-        await interaction.response.edit_message(view=self)
-        await _v2_edit_msg(p["channel_id"], p["message_id"], [
-            _container(
-                _text("## Payment Cancelled"),
-                _separator(),
-                _text(
-                    f"**Reference:** `{self.ref}`\n"
-                    f"**Status:** ❌ Cancelled\n"
-                    f"-# Cancelled By {interaction.user.mention}"
-                ),
-            )
-        ])
-        log.info("Payment %s cancelled by %s", self.ref, interaction.user)
+# Payment cancel is handled via on_interaction — see event handler below
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -644,6 +662,7 @@ bot = commands.Bot(command_prefix=PREFIX, intents=intents, help_command=None)
 
 @bot.event
 async def on_ready():
+    _load_data()                     # Restore config from data.json
     bot.add_view(PanelView())
     bot.add_view(ControlView())
     bot.add_view(VerifyView())
@@ -1135,6 +1154,7 @@ async def ticket_setup(
     d["ticket_category"] = category.id
     d["support_role"]    = support_role.id
     d["log_channel"]     = log_channel.id if log_channel else None
+    _save_data()
 
     lc = log_channel.mention if log_channel else t("setup_not_set")
     await _v2_respond(interaction, [
@@ -1352,6 +1372,7 @@ async def welcome_setup(
     d["welcome_purchase"] = purchase.id if purchase else None
     d["welcome_rules"]    = rules.id    if rules    else None
     d["welcome_news"]     = news.id     if news     else None
+    _save_data()
 
     def _ref(ch: Optional[discord.TextChannel]) -> str:
         return ch.mention if ch else "`Not Set`"
@@ -1393,6 +1414,7 @@ verify_grp = app_commands.Group(
 async def verify_setup(interaction: discord.Interaction, channel: discord.TextChannel):
     d = _gdata(interaction.guild_id)
     d["veri_channel"] = channel.id
+    _save_data()
     await _v2_respond(interaction, [
         _container(
             _text("## Verification Channel Set"),
@@ -1456,6 +1478,7 @@ async def verify_enable(interaction: discord.Interaction, grant_role: discord.Ro
 
     d["veri_role_id"] = unverified.id
     d["veri_enabled"] = True
+    _save_data()
 
     locked  = 0
     skipped = 0
@@ -1573,6 +1596,7 @@ async def verify_disable(interaction: discord.Interaction):
     guild = interaction.guild  # type: ignore
     d     = _gdata(guild.id)
     d["veri_enabled"] = False
+    _save_data()
 
     unverified = guild.get_role(d.get("veri_role_id") or 0)
     removed    = 0
@@ -1694,6 +1718,7 @@ async def payment_setup(
     d["pay_log_channel"]  = log_channel.id
     d["pay_confirm_role"] = confirm_role.id if confirm_role else None
     d["pay_timeout"]      = max(1, timeout) * 60
+    _save_data()
 
     await _v2_respond(interaction, [
         _container(
@@ -1765,19 +1790,19 @@ async def payment_create(
                 f"**Amount:** `{amount:,} VND`\n"
                 f"**Bank:** `{bank_id}` — `{account_no}`\n"
                 f"**Account Name:** `{acc_name}`\n"
-                f"**Description / Nội dung CK:** `{ref}`\n"
+                f"**Transfer Description:** `{ref}`\n"
                 f"**Note:** {description}\n\n"
                 f"⏰ Expires <t:{expire}:R>",
                 qr_url,
             ),
             _separator(),
             _text(
-                "**Hướng dẫn / Instructions:**\n"
-                "> 1️⃣  Mở app ngân hàng / Open banking app\n"
-                "> 2️⃣  Quét QR bên phải / Scan QR on the right\n"
-                f"> 3️⃣  Nhập đúng nội dung: **`{ref}`** — bắt buộc!\n"
-                "> 4️⃣  Bot tự xác nhận trong vài giây / Bot auto-confirms shortly\n\n"
-                "-# Do not change the transfer description or payment will not be detected."
+                "**Instructions:**\n"
+                f"> 1️⃣  Open Your Banking App\n"
+                f"> 2️⃣  Scan The QR Code On The Right\n"
+                f"> 3️⃣  Enter Exactly This Transfer Description: **`{ref}`** — Required!\n"
+                f"> 4️⃣  Bot Will Auto-Confirm Within A Few Seconds\n\n"
+                f"-# Do Not Change The Transfer Description Or Payment Will Not Be Detected."
             ),
             _separator(),
             _action_row(_button("❌ Cancel Payment", f"payment:cancel:{ref}", style=4)),
@@ -1910,6 +1935,134 @@ async def payment_list(interaction: discord.Interaction, status: str = "all"):
             ),
         )
     ])
+
+
+@payment_grp.command(name="announce", description="Announce A Confirmed Payment To A Channel")
+@app_commands.describe(
+    ref="Payment Reference Code (e.g. PAYAB1234)",
+    channel="Channel To Send The Announcement (Optional, Defaults To Current Channel)",
+    note="Extra Note To Include In The Announcement (Optional)",
+)
+@is_owner()
+async def payment_announce(
+    interaction: discord.Interaction,
+    ref:         str,
+    channel:     Optional[discord.TextChannel] = None,
+    note:        Optional[str]                 = None,
+):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    d = _gdata(interaction.guild_id)
+    p = d["payments"].get(ref.upper())
+
+    if not p:
+        return await interaction.followup.send(f"Payment `{ref}` Not Found.", ephemeral=True)
+    if p["status"] != "confirmed":
+        return await interaction.followup.send(
+            f"Payment `{ref}` Is Not Confirmed Yet — Status: **{p['status'].upper()}**.",
+            ephemeral=True,
+        )
+
+    target_ch = channel or interaction.channel
+    guild     = interaction.guild
+    payer     = guild.get_member(p["user_id"])
+    ts_pay    = int(p.get("confirmed_at") or p["created_at"])
+    ts_now    = int(time.time())
+    icon_url  = (
+        payer.display_avatar.with_size(256).url
+        if payer
+        else "https://cdn.discordapp.com/embed/avatars/0.png"
+    )
+    payer_str = payer.mention if payer else f"<@{p['user_id']}>"
+    note_line = f"\n**Note:** {note}" if note else ""
+
+    await _v2_send(target_ch, [  # type: ignore
+        _container(
+            _text("## ✅ Payment Received"),
+            _separator(),
+            _section(
+                f"**Payer:** {payer_str}\n"
+                f"**Amount:** `{p['amount']:,} VND`\n"
+                f"**Reference:** `{ref.upper()}`\n"
+                f"**Description:** {p['description']}\n"
+                f"**Bank:** `{d.get('pay_bank_id', 'N/A')}` — `{d.get('pay_account_no', 'N/A')}`\n"
+                f"**TX ID:** `{p.get('confirmed_by_tx', 'N/A')}`\n"
+                f"**Confirmed:** <t:{ts_pay}:F>"
+                f"{note_line}",
+                icon_url,
+            ),
+            _separator(),
+            _text(f"-# Announced By {interaction.user.mention}  —  <t:{ts_now}:R>"),
+        )
+    ])
+
+    await interaction.followup.send(
+        f"Payment `{ref.upper()}` Announced In {target_ch.mention}.", ephemeral=True
+    )
+    log.info("Payment %s announced to #%s by %s", ref.upper(), target_ch, interaction.user)
+
+
+@payment_grp.command(name="announce_all", description="Announce All Confirmed Payments From Today")
+@app_commands.describe(
+    channel="Channel To Send The Announcement",
+    note="Extra Note To Include (Optional)",
+)
+@is_owner()
+async def payment_announce_all(
+    interaction: discord.Interaction,
+    channel:     discord.TextChannel,
+    note:        Optional[str] = None,
+):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    d        = _gdata(interaction.guild_id)
+    guild    = interaction.guild
+    now      = time.time()
+    today_ts = now - 86400  # Last 24 hours
+
+    confirmed = [
+        (ref, p) for ref, p in d["payments"].items()
+        if p["status"] == "confirmed"
+        and p.get("confirmed_at", 0) >= today_ts
+    ]
+    confirmed.sort(key=lambda x: x[1].get("confirmed_at", 0))
+
+    if not confirmed:
+        return await interaction.followup.send(
+            "No Confirmed Payments In The Last 24 Hours.", ephemeral=True
+        )
+
+    total_vnd = sum(p["amount"] for _, p in confirmed)
+    rows      = []
+    for ref, p in confirmed:
+        payer   = guild.get_member(p["user_id"])
+        p_str   = payer.mention if payer else f"<@{p['user_id']}>"
+        conf_ts = int(p.get("confirmed_at", p["created_at"]))
+        rows.append(
+            f"✅ `{ref}` — **{p['amount']:,} VND** — {p_str} — <t:{conf_ts}:t>"
+        )
+
+    note_line = f"\n\n**Note:** {note}" if note else ""
+    ts_now    = int(now)
+
+    await _v2_send(channel, [
+        _container(
+            _text(f"## 💰 Payment Summary — Last 24 Hours"),
+            _separator(),
+            _text(
+                f"**Total Payments:** {len(confirmed)}\n"
+                f"**Total Revenue:** `{total_vnd:,} VND`"
+                f"{note_line}"
+            ),
+            _separator(),
+            _text("\n".join(rows)),
+            _separator(),
+            _text(f"-# Announced By {interaction.user.mention}  —  <t:{ts_now}:R>"),
+        )
+    ])
+
+    await interaction.followup.send(
+        f"Summary Of {len(confirmed)} Payment(s) Announced In {channel.mention}.", ephemeral=True
+    )
+    log.info("Payment summary announced by %s — %d payments", interaction.user, len(confirmed))
 
 
 @payment_grp.command(name="info", description="Show Current Payment System Configuration")
@@ -2092,6 +2245,61 @@ async def owner_close_all(interaction: discord.Interaction):
 
 
 bot.tree.add_command(owner_grp)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  Component Interaction Handler — Payment Cancel Button
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+#  The cancel button uses a dynamic custom_id: "payment:cancel:{ref}"
+#  Handled via on_interaction instead of a persistent View class.
+
+@bot.event
+async def on_interaction(interaction: discord.Interaction):
+    if interaction.type != discord.InteractionType.component:
+        return
+
+    custom_id = (interaction.data or {}).get("custom_id", "")
+    if not custom_id.startswith("payment:cancel:"):
+        return
+
+    ref      = custom_id[len("payment:cancel:"):].upper()
+    guild_id = interaction.guild_id
+    if not guild_id:
+        return await interaction.response.send_message("Guild Not Found.", ephemeral=True)
+
+    p = _payment_get(guild_id, ref)
+    if not p:
+        return await interaction.response.send_message(
+            f"Payment `{ref}` Not Found.", ephemeral=True
+        )
+    if p["status"] != "pending":
+        return await interaction.response.send_message(
+            f"Payment Is Already **{p['status'].upper()}**.", ephemeral=True
+        )
+    if p["user_id"] != interaction.user.id and interaction.user.id != OWNER_ID:
+        return await interaction.response.send_message(
+            "Only The Payment Owner Can Cancel This.", ephemeral=True
+        )
+
+    _payment_expire(guild_id, ref)
+    await interaction.response.defer()
+
+    ts = int(time.time())
+    await _v2_edit_msg(p["channel_id"], p["message_id"], [
+        _container(
+            _text("## ❌ Payment Cancelled"),
+            _separator(),
+            _text(
+                f"**Reference:** `{ref}`\n"
+                f"**Amount:** `{p['amount']:,} VND`\n"
+                f"**Status:** ❌ Cancelled\n"
+                f"-# Cancelled By {interaction.user.mention}  —  <t:{ts}:R>"
+            ),
+        )
+    ])
+    log.info("Payment %s cancelled by %s", ref, interaction.user)
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
