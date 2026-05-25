@@ -430,12 +430,13 @@ async def _casso_get_transactions(api_key: str, from_id: int = 0) -> list[dict]:
 #  Payment Store Helpers
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _payment_create(guild_id: int, user_id: int, amount: int, description: str, channel_id: int, message_id: int) -> dict:
-    d   = _gdata(guild_id)
-    ref = _gen_ref(guild_id, user_id)
-    # Ensure ref is unique
-    while ref in d["payments"]:
+def _payment_create(guild_id: int, user_id: int, amount: int, description: str, channel_id: int, message_id: int, ref: str = "") -> dict:
+    d = _gdata(guild_id)
+    # Use the ref passed in (already generated and shown on QR)
+    if not ref:
         ref = _gen_ref(guild_id, user_id)
+        while ref in d["payments"]:
+            ref = _gen_ref(guild_id, user_id)
     payment = {
         "ref":         ref,
         "guild_id":    guild_id,
@@ -912,11 +913,13 @@ async def _notify_payment_confirmed(guild_id: int, ref: str):
 
 
 async def _notify_payment_expired(guild_id: int, ref: str):
-    """Edit the QR message to show expired."""
+    """Edit QR message to show expired, then delete it after 5 seconds."""
     d = _gdata(guild_id)
     p = d["payments"].get(ref)
     if not p:
         return
+
+    # Step 1: Edit message to show expired notice
     try:
         await _v2_edit_msg(p["channel_id"], p["message_id"], [
             _container(
@@ -926,13 +929,26 @@ async def _notify_payment_expired(guild_id: int, ref: str):
                     f"**Reference:** `{ref}`\n"
                     f"**Amount:** `{p['amount']:,} VND`\n"
                     f"**Status:** ⏰ Expired — No Payment Received\n"
-                    f"-# Please Run `/payment create` To Generate A New QR."
+                    f"-# This Message Will Be Deleted In 5 Seconds."
                 ),
             )
         ])
     except Exception as e:
         log.warning("Could Not Edit Expired Payment Message: %s", e)
-    log.info("Payment %s expired", ref)
+
+    # Step 2: Wait 5 seconds then delete the message
+    await asyncio.sleep(5)
+    try:
+        url     = f"https://discord.com/api/v10/channels/{p['channel_id']}/messages/{p['message_id']}"
+        headers = {"Authorization": f"Bot {TOKEN}"}
+        async with aiohttp.ClientSession() as s:
+            async with s.delete(url, headers=headers) as r:
+                if r.status not in (200, 204):
+                    log.warning("Could Not Delete Expired Payment Message: %s", r.status)
+    except Exception as e:
+        log.warning("Could Not Delete Expired Payment Message: %s", e)
+
+    log.info("Payment %s expired and message deleted", ref)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1918,7 +1934,7 @@ async def payment_create(
     ])
 
     msg_id = int(msg_data.get("id", 0))
-    _payment_create(interaction.guild_id, payer.id, amount, description, channel.id, msg_id)
+    _payment_create(interaction.guild_id, payer.id, amount, description, channel.id, msg_id, ref=ref)
 
     # Delete the thinking followup (it was already sent via _v2_send)
     try:
@@ -1977,8 +1993,8 @@ async def payment_confirm(interaction: discord.Interaction, ref: str):
     if not matched_key:
         pending_refs = [k for k, v in payments.items() if v["status"] == "pending"]
         hint = (
-            "\n\n**Pending Payments:** " + ", ".join(f"`{r}`" for r in pending_refs[:10])
-            if pending_refs else "\n\n**No Pending Payments Found In This Server.**"
+            "\n\n**Active Payments:** " + ", ".join(f"`{r}`" for r in pending_refs[:10])
+            if pending_refs else ""
         )
         return await interaction.response.send_message(
             f"Payment `{ref_up}` Not Found.{hint}", ephemeral=True
@@ -2317,10 +2333,20 @@ async def on_interaction(interaction: discord.Interaction):
                 f"**Reference:** `{ref}`\n"
                 f"**Amount:** `{p['amount']:,} VND`\n"
                 f"**Status:** ❌ Cancelled\n"
-                f"-# Cancelled By {interaction.user.mention}  —  <t:{ts}:R>"
+                f"-# Cancelled By {interaction.user.mention}  —  This Message Will Be Deleted In 5 Seconds."
             ),
         )
     ])
+    await asyncio.sleep(5)
+    try:
+        url     = f"https://discord.com/api/v10/channels/{p['channel_id']}/messages/{p['message_id']}"
+        headers = {"Authorization": f"Bot {TOKEN}"}
+        async with aiohttp.ClientSession() as s:
+            async with s.delete(url, headers=headers) as r:
+                if r.status not in (200, 204):
+                    log.warning("Could Not Delete Cancelled Payment Message: %s", r.status)
+    except Exception as e:
+        log.warning("Could Not Delete Cancelled Payment Message: %s", e)
     log.info("Payment %s cancelled by %s", ref, interaction.user)
 
 
