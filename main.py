@@ -1,10 +1,13 @@
 """
-Discord Multi-System Bot  —  Components V2
-Single File Edition  |  discord.py 2.4+
-
-Install : pip install discord.py aiohttp
-Run     : python c.py
-Commands: /ticket  /welcome  /verify  /owner  /payment  /help
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     Discord Multi-System Bot                                ║
+║                     Components V2  |  Single File Edition                   ║
+║                     discord.py 2.4+  |  aiohttp                             ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  Install  :  pip install discord.py aiohttp                                 ║
+║  Run      :  python bot.py                                                   ║
+║  Commands :  /ticket  /welcome  /payment  /ping                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
 from __future__ import annotations
@@ -27,18 +30,18 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Credentials
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                              CREDENTIALS                                    ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 TOKEN    = os.getenv("TOKEN", "")
 OWNER_ID = 1498384419805986886
 PREFIX   = "!"
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Ticket Categories
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                           TICKET CATEGORIES                                 ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 TICKET_CATEGORIES = {
     "support": {
@@ -64,37 +67,50 @@ TICKET_CATEGORIES = {
 }
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Strings
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                              STRING TABLE                                   ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 S = {
+    # ── Panel ──────────────────────────────────────────────────────────────────
     "panel_title":            "Support Center",
     "panel_categories_title": "### Available Categories",
     "panel_placeholder":      "Select A Ticket Category...",
+
+    # ── Modal ──────────────────────────────────────────────────────────────────
     "modal_title":            "Create A Support Ticket",
     "modal_subject_label":    "Subject",
     "modal_subject_ph":       "Briefly Describe Your Issue...",
     "modal_detail_label":     "Detailed Description",
     "modal_detail_ph":        "Provide As Much Detail As Possible...",
+
+    # ── Ticket Info ────────────────────────────────────────────────────────────
     "ticket_header":          "Your Ticket Has Been Created. Our Support Team Will Respond As Soon As Possible.",
     "ticket_opened_by":       "Opened By",
     "ticket_subject":         "Subject",
     "ticket_created":         "Created",
     "ticket_issue":           "Issue Description",
+
+    # ── Buttons ────────────────────────────────────────────────────────────────
     "btn_close":              "Close Ticket",
     "btn_claim":              "Claim Ticket",
+
+    # ── Close Flow ─────────────────────────────────────────────────────────────
     "close_confirm_q":        "Are You Sure You Want To Close This Ticket?",
     "close_cancelled":        "Close Request Cancelled.",
     "close_header":           "Ticket Closed",
     "close_body":             "If You Need Further Assistance, Please Open A New Ticket.",
     "close_closed_by":        "Closed By",
     "close_countdown":        "This Ticket Will Be Deleted In **10 Seconds**.",
+
+    # ── Claim Flow ─────────────────────────────────────────────────────────────
     "claim_staff_only":       "Only Staff Members Can Claim Tickets.",
     "claim_already":          "This Ticket Is Already Claimed By",
     "claim_success_ch":       "Has Claimed This Ticket",
     "claim_success_note":     "All Further Support Will Be Handled By This Staff Member.",
     "claim_ack":              "You Have Successfully Claimed This Ticket.",
+
+    # ── Misc ───────────────────────────────────────────────────────────────────
     "transcript_ok":          "Transcript Generated Successfully.",
     "err_not_ticket":         "This Channel Is Not A Ticket.",
     "err_no_setup":           "System Not Configured. Run /ticket Setup First.",
@@ -104,14 +120,20 @@ S = {
     "err_panel_sent":         "Panel Sent Successfully.",
     "user_added":             "Has Been Added To This Ticket.",
     "user_removed":           "Has Been Removed From This Ticket.",
+
+    # ── Setup ──────────────────────────────────────────────────────────────────
     "setup_ok":               "Setup Complete",
     "setup_category":         "Category",
     "setup_role":             "Support Role",
     "setup_log":              "Log Channel",
     "setup_not_set":          "Not Set",
+
+    # ── List ───────────────────────────────────────────────────────────────────
     "list_empty":             "No Open Tickets Found.",
     "list_title":             "Open Tickets",
     "list_unclaimed":         "Unclaimed",
+
+    # ── Category Labels ────────────────────────────────────────────────────────
     "cat_support_label":      "Technical Support",
     "cat_support_desc":       "Technical Issues, Bugs, Installation",
     "cat_billing_label":      "Billing",
@@ -134,9 +156,9 @@ def _cat_desc(key: str) -> str:
     return S.get(f"cat_{key}_desc", key)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Logging
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                               LOGGING                                       ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 logging.basicConfig(
     level=logging.INFO,
@@ -146,9 +168,9 @@ logging.basicConfig(
 log = logging.getLogger("Bot")
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Owner Check
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                             OWNER CHECK                                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 def is_owner():
     async def predicate(interaction: discord.Interaction) -> bool:
@@ -162,9 +184,9 @@ def is_owner():
     return app_commands.check(predicate)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Components V2 Helpers
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                        COMPONENTS V2 HELPERS                                ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 V2_FLAG = 1 << 15
 
@@ -254,20 +276,16 @@ async def _v2_edit_msg(channel_id: int, message_id: int, components: list[dict])
                 log.error("V2 Edit Error %s: %s", r.status, await r.json())
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Persistent Store  —  Auto-Save To data.json On Every Change
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                       PERSISTENT STORE  (data.json)                         ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 DATA_FILE = pathlib.Path("data.json")
 
-# Keys that are config-level (survive restart).
-# "tickets" and "payments" are runtime-only; pending ones are lost on restart
-# intentionally (payment QR messages would be stale anyway).
 _CONFIG_KEYS = {
     "ticket_category", "log_channel", "support_role", "panel_channel",
     "counter", "welcome_channel", "welcome_purchase", "welcome_rules",
-    "welcome_news", "veri_enabled", "veri_channel", "veri_role_id",
-    "veri_grant_id", "pay_bank_id", "pay_account_no", "pay_account_name",
+    "welcome_news", "pay_bank_id", "pay_account_no", "pay_account_name",
     "pay_casso_key", "pay_log_channel", "pay_confirm_role", "pay_timeout",
     "pay_announce_channel",
 }
@@ -285,13 +303,9 @@ _DEFAULTS: dict = {
     "welcome_purchase": None,
     "welcome_rules":    None,
     "welcome_news":     None,
-    "veri_enabled":     False,
-    "veri_channel":     None,
-    "veri_role_id":     None,
-    "veri_grant_id":    None,
     "pay_bank_id":      "ICB",
     "pay_account_no":   "0907617630",
-    "pay_account_name": "NGUYEN VAN A",
+    "pay_account_name": "Nguyen Van A",
     "pay_casso_key":    None,
     "pay_log_channel":  None,
     "pay_confirm_role": None,
@@ -301,28 +315,25 @@ _DEFAULTS: dict = {
 
 
 def _load_data() -> None:
-    """Load persisted config from data.json into _STORE on startup."""
     global _STORE
     if not DATA_FILE.exists():
-        log.info("No data.json found — starting fresh.")
+        log.info("No data.json Found — Starting Fresh.")
         return
     try:
         raw = json.loads(DATA_FILE.read_text(encoding="utf-8"))
         for gid_str, saved in raw.items():
             gid = int(gid_str)
             d   = dict(_DEFAULTS)
-            # Restore only config keys — runtime keys (tickets, payments) start fresh
             for k in _CONFIG_KEYS:
                 if k in saved:
                     d[k] = saved[k]
             _STORE[gid] = d
-        log.info("Loaded data.json — %d guild(s) restored.", len(_STORE))
+        log.info("Loaded data.json — %d Guild(s) Restored.", len(_STORE))
     except Exception as e:
-        log.error("Failed to load data.json: %s", e)
+        log.error("Failed To Load data.json: %s", e)
 
 
 def _save_data() -> None:
-    """Persist config to data.json. Called after every setup change."""
     try:
         out: dict = {}
         for gid, d in _STORE.items():
@@ -331,7 +342,7 @@ def _save_data() -> None:
             json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8"
         )
     except Exception as e:
-        log.error("Failed to save data.json: %s", e)
+        log.error("Failed To Save data.json: %s", e)
 
 
 def _gdata(guild_id: int) -> dict:
@@ -347,39 +358,40 @@ def _next_id(guild_id: int) -> str:
     return f"{d['counter']:04d}"
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  VietQR Helper
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-#  VietQR public URL — no API key needed for QR image generation
-#  Format: https://img.vietqr.io/image/{BANK_ID}-{ACCOUNT_NO}-{TEMPLATE}.png
-#            ?amount={AMOUNT}&addInfo={DESCRIPTION}&accountName={NAME}
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                           VIETQR HELPER                                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 VIETQR_BANKS = {
-    "ACB":    "ACB",
-    "BIDV":   "BIDV",
-    "MB":     "MB",
-    "MSB":    "MSB",
-    "OCB":    "OCB",
-    "SCB":    "SCB",
-    "SHB":    "SHB",
-    "TCB":    "TCB",       # Techcombank
-    "TPB":    "TPB",       # TPBank
-    "VCB":    "VCB",       # Vietcombank
-    "VIB":    "VIB",
-    "VPB":    "VPB",       # VPBank
-    "VIETINBANK": "ICB",
-    "AGRIBANK":   "VBA",
-    "TPBANK":     "TPB",
-    "SACOMBANK":  "STB",
-    "HDBANK":     "HDB",
-    "SEABANK":    "SEAB",
-    "ABBANK":     "ABB",
-    "BAOVIETBANK":"BVB",
+    "ACB":         "ACB",
+    "BIDV":        "BIDV",
+    "MB":          "MB",
+    "MSB":         "MSB",
+    "OCB":         "OCB",
+    "SCB":         "SCB",
+    "SHB":         "SHB",
+    "TCB":         "TCB",
+    "TPB":         "TPB",
+    "VCB":         "VCB",
+    "VIB":         "VIB",
+    "VPB":         "VPB",
+    "VIETINBANK":  "ICB",
+    "AGRIBANK":    "VBA",
+    "TPBANK":      "TPB",
+    "SACOMBANK":   "STB",
+    "HDBANK":      "HDB",
+    "SEABANK":     "SEAB",
+    "ABBANK":      "ABB",
+    "BAOVIETBANK": "BVB",
 }
 
-def _vietqr_url(bank_id: str, account_no: str, account_name: str, amount: int, ref: str) -> str:
-    """Generate VietQR image URL."""
+def _vietqr_url(
+    bank_id: str,
+    account_no: str,
+    account_name: str,
+    amount: int,
+    ref: str,
+) -> str:
     from urllib.parse import quote
     base  = f"https://img.vietqr.io/image/{bank_id}-{account_no}-compact2.png"
     query = (
@@ -390,64 +402,64 @@ def _vietqr_url(bank_id: str, account_no: str, account_name: str, amount: int, r
     return base + query
 
 def _gen_ref(guild_id: int, user_id: int) -> str:
-    """Generate a unique 8-char payment reference code."""
-    chars = string.ascii_uppercase + string.digits
+    chars  = string.ascii_uppercase + string.digits
     suffix = "".join(random.choices(chars, k=6))
     return f"PAY{suffix}"
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Casso Auto-Confirm Helper
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-#  Casso (casso.vn) — webhooks & polling API for Vietnamese bank transactions.
-#  Docs: https://casso.vn/documentation
-#  After linking your bank account on Casso, use the API key to poll transactions.
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                         CASSO AUTO-CONFIRM                                  ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 async def _casso_get_transactions(api_key: str, from_id: int = 0) -> list[dict]:
-    """
-    Poll recent transactions from Casso API.
-    Returns list of transaction dicts with keys: id, amount, description, when
-    """
     url     = "https://oauth.casso.vn/v2/transactions"
     headers = {"Authorization": f"Apikey {api_key}"}
     params  = {"page": 1, "pageSize": 20}
     try:
         async with aiohttp.ClientSession() as s:
-            async with s.get(url, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=10)) as r:
+            async with s.get(
+                url, headers=headers, params=params,
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as r:
                 if r.status != 200:
                     log.warning("Casso API Error: %s", r.status)
                     return []
                 data = await r.json()
-                records = data.get("data", {}).get("records", [])
-                return records
+                return data.get("data", {}).get("records", [])
     except Exception as e:
         log.warning("Casso Poll Error: %s", e)
         return []
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Payment Store Helpers
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                         PAYMENT STORE HELPERS                               ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
-def _payment_create(guild_id: int, user_id: int, amount: int, description: str, channel_id: int, message_id: int, ref: str = "") -> dict:
+def _payment_create(
+    guild_id: int,
+    user_id: int,
+    amount: int,
+    description: str,
+    channel_id: int,
+    message_id: int,
+    ref: str = "",
+) -> dict:
     d = _gdata(guild_id)
-    # Use the ref passed in (already generated and shown on QR)
     if not ref:
         ref = _gen_ref(guild_id, user_id)
         while ref in d["payments"]:
             ref = _gen_ref(guild_id, user_id)
     payment = {
-        "ref":         ref,
-        "guild_id":    guild_id,
-        "user_id":     user_id,
-        "amount":      amount,
-        "description": description,
-        "channel_id":  channel_id,
-        "message_id":  message_id,
-        "status":      "pending",    # pending | confirmed | expired | cancelled
-        "created_at":  time.time(),
-        "confirmed_at": None,
+        "ref":             ref,
+        "guild_id":        guild_id,
+        "user_id":         user_id,
+        "amount":          amount,
+        "description":     description,
+        "channel_id":      channel_id,
+        "message_id":      message_id,
+        "status":          "pending",
+        "created_at":      time.time(),
+        "confirmed_at":    None,
         "confirmed_by_tx": None,
     }
     d["payments"][ref] = payment
@@ -460,8 +472,8 @@ def _payment_confirm(guild_id: int, ref: str, tx_id: str) -> bool:
     p = _payment_get(guild_id, ref)
     if not p or p["status"] != "pending":
         return False
-    p["status"]         = "confirmed"
-    p["confirmed_at"]   = time.time()
+    p["status"]          = "confirmed"
+    p["confirmed_at"]    = time.time()
     p["confirmed_by_tx"] = tx_id
     return True
 
@@ -473,9 +485,9 @@ def _payment_expire(guild_id: int, ref: str) -> bool:
     return True
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  UI — Ticket Category Select & Panel View
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                      UI — TICKET PANEL & SELECT                             ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 class CategorySelect(discord.ui.Select):
     def __init__(self):
@@ -503,9 +515,9 @@ class PanelView(discord.ui.View):
         self.add_item(CategorySelect())
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  UI — Ticket Create Modal
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                      UI — TICKET CREATE MODAL                               ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 class CreateModal(discord.ui.Modal, title="Create A Support Ticket"):
     def __init__(self, category_key: str, guild_id: int = 0):
@@ -538,9 +550,9 @@ class CreateModal(discord.ui.Modal, title="Create A Support Ticket"):
         )
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  UI — Ticket Control & Confirm Close
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                    UI — TICKET CONTROL & CONFIRM CLOSE                      ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 class ControlView(discord.ui.View):
     def __init__(self):
@@ -585,75 +597,9 @@ class ConfirmCloseView(discord.ui.View):
         await interaction.response.edit_message(content=t("close_cancelled"), view=None)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  UI — Payment Cancel Button
-# ═══════════════════════════════════════════════════════════════════════════════
-
-# Payment cancel is handled via on_interaction — see event handler below
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  UI — Verification View
-# ═══════════════════════════════════════════════════════════════════════════════
-
-class VerifyView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(
-        label="Verify",
-        style=discord.ButtonStyle.secondary,
-        custom_id="verify:btn",
-    )
-    async def verify_btn(self, interaction: discord.Interaction, _: discord.ui.Button):
-        d      = _gdata(interaction.guild_id)
-        guild  = interaction.guild
-        member: discord.Member = interaction.user  # type: ignore
-
-        if not d.get("veri_enabled"):
-            return await interaction.response.send_message(
-                "The Verification System Is Currently Disabled.", ephemeral=True
-            )
-
-        unverified = guild.get_role(d.get("veri_role_id") or 0)
-        if unverified and unverified not in member.roles:
-            return await interaction.response.send_message(
-                "You Are Already Verified!", ephemeral=True
-            )
-
-        grant_role = guild.get_role(d.get("veri_grant_id") or 0)
-        if not grant_role:
-            return await interaction.response.send_message(
-                "Verified Role Not Found. Please Contact An Admin.", ephemeral=True
-            )
-
-        try:
-            await member.add_roles(grant_role, reason="Verified Via Verification Panel")
-            if unverified and unverified in member.roles:
-                await member.remove_roles(unverified, reason="Member Verified Successfully")
-        except discord.Forbidden:
-            return await interaction.response.send_message(
-                "Bot Lacks Permission To Assign Roles. Please Contact An Admin.",
-                ephemeral=True,
-            )
-
-        await _v2_respond(interaction, [
-            _container(
-                _text("## Verification Complete"),
-                _separator(),
-                _text(
-                    f"Welcome To The Server, {member.mention}!\n"
-                    f"You Have Been Assigned The **{grant_role.name}** Role.\n"
-                    "-# You Now Have Full Access To All Channels."
-                ),
-            )
-        ])
-        log.info("Verified %s - Assigned '%s' In '%s'", member, grant_role.name, guild.name)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Bot Setup
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                              BOT SETUP                                      ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 intents                 = discord.Intents.default()
 intents.message_content = True
@@ -664,13 +610,11 @@ bot = commands.Bot(command_prefix=PREFIX, intents=intents, help_command=None)
 
 @bot.event
 async def on_ready():
-    _load_data()                     # Restore config from data.json
+    _load_data()
     bot.add_view(PanelView())
     bot.add_view(ControlView())
-    bot.add_view(VerifyView())
     await bot.tree.sync()
     await bot.change_presence(status=discord.Status.online)
-    # Start background tasks
     if not payment_checker.is_running():
         payment_checker.start()
     if not payment_expiry.is_running():
@@ -683,10 +627,9 @@ async def on_ready():
     )
 
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Payment Daily Summary Helper
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                       PAYMENT DAILY SUMMARY HELPER                          ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 async def _send_daily_summary(
     guild_id:   int,
@@ -695,7 +638,6 @@ async def _send_daily_summary(
     note:  str | None = None,
     actor: str        = "Auto",
 ) -> None:
-    """Build and send the daily payment summary to a channel."""
     guild = bot.get_guild(guild_id)
     if not guild:
         return
@@ -705,7 +647,7 @@ async def _send_daily_summary(
 
     d        = _gdata(guild_id)
     now      = time.time()
-    today_ts = now - 86400  # Last 24 hours
+    today_ts = now - 86400
 
     confirmed = [
         (ref, p) for ref, p in d["payments"].items()
@@ -759,36 +701,29 @@ async def _send_daily_summary(
         )
     ])
     log.info(
-        "Daily summary sent to #%s — %d payments — %s VND — by %s",
+        "Daily Summary Sent To #%s — %d Payments — %s VND — By %s",
         channel, len(confirmed), total_vnd, actor,
     )
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Background Task — Payment Auto-Confirm (Casso Poll every 15s)
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║               BACKGROUND TASK — PAYMENT AUTO-CONFIRM (15s)                 ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 @tasks.loop(seconds=15)
 async def payment_checker():
-    """Poll Casso for new transactions and auto-confirm matching payments."""
     for guild_id, gd in list(_STORE.items()):
         casso_key = gd.get("pay_casso_key")
         if not casso_key:
             continue
-
-        pending = {
-            ref: p for ref, p in gd["payments"].items()
-            if p["status"] == "pending"
-        }
+        pending = {ref: p for ref, p in gd["payments"].items() if p["status"] == "pending"}
         if not pending:
             continue
-
         txs = await _casso_get_transactions(casso_key)
         for tx in txs:
-            desc    = str(tx.get("description", "") or tx.get("memo", "")).upper()
-            amount  = int(tx.get("amount", 0))
-            tx_id   = str(tx.get("id", ""))
-
+            desc   = str(tx.get("description", "") or tx.get("memo", "")).upper()
+            amount = int(tx.get("amount", 0))
+            tx_id  = str(tx.get("id", ""))
             for ref, p in list(pending.items()):
                 if p["status"] != "pending":
                     continue
@@ -803,13 +738,12 @@ async def before_checker():
     await bot.wait_until_ready()
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Background Task — Payment Expiry Check (every 60s)
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║               BACKGROUND TASK — PAYMENT EXPIRY CHECK (60s)                 ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 @tasks.loop(seconds=60)
 async def payment_expiry():
-    """Expire pending payments that have timed out."""
     now = time.time()
     for guild_id, gd in list(_STORE.items()):
         timeout = gd.get("pay_timeout", 600)
@@ -824,13 +758,13 @@ async def payment_expiry():
 async def before_expiry():
     await bot.wait_until_ready()
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Background Task — Daily 12:00 Payment Summary
-# ═══════════════════════════════════════════════════════════════════════════════
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║               BACKGROUND TASK — DAILY SUMMARY (00:00 UTC+7)                ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 @tasks.loop(minutes=1)
 async def daily_summary_task():
-    """Fire at 00:00 UTC+7 (17:00 UTC) every day."""
     now_utc7 = datetime.now(timezone.utc).astimezone(
         __import__("zoneinfo", fromlist=["ZoneInfo"]).ZoneInfo("Asia/Ho_Chi_Minh")
     )
@@ -847,27 +781,21 @@ async def before_daily():
     await bot.wait_until_ready()
 
 
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Payment Notifications
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                        PAYMENT NOTIFICATIONS                                ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 async def _notify_payment_confirmed(guild_id: int, ref: str):
-    """Edit the QR message and send log when a payment is confirmed."""
-    d       = _gdata(guild_id)
-    p       = d["payments"].get(ref)
+    d = _gdata(guild_id)
+    p = d["payments"].get(ref)
     if not p:
         return
-
-    guild = bot.get_guild(guild_id)
+    guild  = bot.get_guild(guild_id)
     if not guild:
         return
-
     member = guild.get_member(p["user_id"])
     ts     = int(time.time())
 
-    # Edit original QR message to show confirmed
     try:
         await _v2_edit_msg(p["channel_id"], p["message_id"], [
             _container(
@@ -885,7 +813,6 @@ async def _notify_payment_confirmed(guild_id: int, ref: str):
     except Exception as e:
         log.warning("Could Not Edit Payment Message: %s", e)
 
-    # Log to payment log channel
     log_ch_id = d.get("pay_log_channel")
     if log_ch_id:
         log_ch = guild.get_channel(log_ch_id)
@@ -894,32 +821,31 @@ async def _notify_payment_confirmed(guild_id: int, ref: str):
             ping_txt  = f"<@&{ping_role}> " if ping_role else ""
             await _v2_send(log_ch, [  # type: ignore
                 _container(
-                    _text(f"## ✅ Payment Received"),
+                    _text("## ✅ Payment Received"),
                     _separator(),
                     _section(
                         f"**Reference:** `{ref}`\n"
                         f"**Amount:** `{p['amount']:,} VND`\n"
-                        f"**Description:** {p['description']}\n"
+                        
                         f"**Payer:** {member.mention if member else 'ID: ' + str(p['user_id'])}\n"
                         f"**TX ID:** `{p.get('confirmed_by_tx', 'N/A')}`",
-                        member.display_avatar.with_size(256).url if member else "https://cdn.discordapp.com/embed/avatars/0.png",
+                        member.display_avatar.with_size(256).url if member
+                        else "https://cdn.discordapp.com/embed/avatars/0.png",
                     ),
                     _separator(),
                     _text(f"{ping_txt}-# <t:{ts}:F>"),
                 )
             ])
 
-    log.info("Payment %s confirmed for user %s — %s VND", ref, p["user_id"], p["amount"])
+    log.info("Payment %s Confirmed For User %s — %s VND", ref, p["user_id"], p["amount"])
 
 
 async def _notify_payment_expired(guild_id: int, ref: str):
-    """Edit QR message to show expired, then delete it after 5 seconds."""
     d = _gdata(guild_id)
     p = d["payments"].get(ref)
     if not p:
         return
 
-    # Step 1: Edit message to show expired notice
     try:
         await _v2_edit_msg(p["channel_id"], p["message_id"], [
             _container(
@@ -936,7 +862,6 @@ async def _notify_payment_expired(guild_id: int, ref: str):
     except Exception as e:
         log.warning("Could Not Edit Expired Payment Message: %s", e)
 
-    # Step 2: Wait 5 seconds then delete the message
     await asyncio.sleep(5)
     try:
         url     = f"https://discord.com/api/v10/channels/{p['channel_id']}/messages/{p['message_id']}"
@@ -948,26 +873,17 @@ async def _notify_payment_expired(guild_id: int, ref: str):
     except Exception as e:
         log.warning("Could Not Delete Expired Payment Message: %s", e)
 
-    log.info("Payment %s expired and message deleted", ref)
+    log.info("Payment %s Expired And Message Deleted", ref)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Event — Member Join
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                          EVENT — MEMBER JOIN                                ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 @bot.event
 async def on_member_join(member: discord.Member):
     guild = member.guild
     d     = _gdata(guild.id)
-
-    if d.get("veri_enabled"):
-        unverified = guild.get_role(d.get("veri_role_id") or 0)
-        if unverified:
-            try:
-                await member.add_roles(unverified, reason="Auto-Assigned Unverified Role On Join")
-                log.info("Auto-Assigned Unverified To %s In '%s'", member, guild.name)
-            except discord.Forbidden:
-                log.warning("Cannot Auto-Assign Unverified To %s - Missing Permissions", member)
 
     wch = guild.get_channel(d.get("welcome_channel") or 0)
     if not wch:
@@ -997,9 +913,9 @@ async def on_member_join(member: discord.Member):
     log.info("Welcome Sent For %s In '%s' (Member #%d)", member, guild.name, guild.member_count)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Ticket Logic
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                            TICKET LOGIC                                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 async def _create_ticket(
     interaction: discord.Interaction,
@@ -1144,7 +1060,10 @@ async def _do_close_ticket(interaction: discord.Interaction):
             if lch:
                 buf.seek(0)
                 await lch.send(
-                    content=f"Transcript — Ticket `#{td.get('id', '????')}` Closed By {interaction.user.mention}",
+                    content=(
+                        f"Transcript — Ticket `#{td.get('id', '????')}` "
+                        f"Closed By {interaction.user.mention}"
+                    ),
                     file=discord.File(buf, filename=fname),
                 )
     except discord.Forbidden:
@@ -1250,9 +1169,16 @@ async def _log_event(
     ])
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  /ticket Commands
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                           /ticket COMMANDS                                  ║
+# ╠══════════════════════════════════════════════════════════════════════════════╣
+# ║  /ticket setup    — Configure ticket system                                 ║
+# ║  /ticket panel    — Send ticket panel to channel                            ║
+# ║  /ticket add      — Add user to ticket                                      ║
+# ║  /ticket remove   — Remove user from ticket                                 ║
+# ║  /ticket list     — List all open tickets                                   ║
+# ║  /ticket delete   — Force delete a ticket channel                           ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 ticket_grp = app_commands.Group(
     name="ticket",
@@ -1316,29 +1242,23 @@ async def ticket_panel(interaction: discord.Interaction):
 
     await _v2_send(channel, [
         _container(
-            _section(
-                f"## {t('panel_title')}\n"
-                f"Need help? Open a ticket and our support team will assist you as soon as possible.",
-                icon_url,
-            ),
-            _separator(),
             _text(
-                "**Technical Support**\n"
-                "-# Technical Issues, Bugs, Installation\n\n"
-                "**Billing**\n"
-                "-# Invoices, Transactions, Refunds\n\n"
-                "**Report Violation**\n"
-                "-# Report Users Or Content\n\n"
-                "**General Inquiry**\n"
-                "-# General Questions, Feedback\n\n"
-                "**Partnership**\n"
-                "-# Collaboration Proposals, Advertising"
+                "## Draken Notifier\n"
+                "⊕ Purchase Dragon Balance Below.\n"
+                "🖥 Balance Can Be Used To Purchase PRO Slot Time.\n"
+                "> Select A Product From The Dropdown Menu Below."
             ),
             _separator(),
             _select(
                 custom_id="ticket:category_select",
-                placeholder=t("panel_placeholder"),
+                placeholder="Select A Product...",
                 options=select_options,
+            ),
+            _separator(),
+            _text(
+                "✓ Minimum Top-Up: **$1.00**\n"
+                "✓ Payments Are Detected Automatically\n"
+                "✓ Balance Never Expires Unless Spent"
             ),
         )
     ])
@@ -1434,7 +1354,10 @@ async def ticket_delete(interaction: discord.Interaction, channel: discord.TextC
             if lch:
                 buf.seek(0)
                 await lch.send(
-                    content=f"Transcript — Ticket `#{td.get('id', '????')}` Deleted By {interaction.user.mention}",
+                    content=(
+                        f"Transcript — Ticket `#{td.get('id', '????')}` "
+                        f"Deleted By {interaction.user.mention}"
+                    ),
                     file=discord.File(buf, filename=fname),
                 )
     except discord.Forbidden:
@@ -1465,9 +1388,11 @@ async def ticket_delete(interaction: discord.Interaction, channel: discord.TextC
 bot.tree.add_command(ticket_grp)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  /welcome Commands
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                          /welcome COMMANDS                                  ║
+# ╠══════════════════════════════════════════════════════════════════════════════╣
+# ║  /welcome setup   — Configure welcome message system                        ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 welcome_grp = app_commands.Group(
     name="welcome",
@@ -1521,288 +1446,18 @@ async def welcome_setup(
 bot.tree.add_command(welcome_grp)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  /verify Commands
-# ═══════════════════════════════════════════════════════════════════════════════
-
-verify_grp = app_commands.Group(
-    name="verify",
-    description="Member Verification System",
-    default_permissions=discord.Permissions(0),
-)
-
-
-@verify_grp.command(name="setup", description="Set The Verification Channel")
-@app_commands.describe(channel="Channel Where The Verify Panel Will Be Sent")
-@is_owner()
-async def verify_setup(interaction: discord.Interaction, channel: discord.TextChannel):
-    d = _gdata(interaction.guild_id)
-    d["veri_channel"] = channel.id
-    _save_data()
-    await _v2_respond(interaction, [
-        _container(
-            _text("## Verification Channel Set"),
-            _separator(),
-            _text(
-                f"**Verify Channel:** {channel.mention}\n\n"
-                "**Next Steps:**\n"
-                "> Run `/verify enable` To Activate The System And Lock Channels.\n"
-                "> Run `/verify panel` To Send The Verify Button."
-            ),
-        )
-    ])
-
-
-@verify_grp.command(
-    name="enable",
-    description="Enable Verification: Create Unverified Role & Lock All Channels Except Verify Channel",
-)
-@app_commands.describe(grant_role="Role To Grant Members After They Verify")
-@is_owner()
-async def verify_enable(interaction: discord.Interaction, grant_role: discord.Role):
-    await interaction.response.defer(ephemeral=True, thinking=True)
-    guild = interaction.guild  # type: ignore
-    d     = _gdata(guild.id)
-
-    if not d.get("veri_channel"):
-        return await _v2_followup(interaction, [
-            _container(
-                _text("## Setup Required"),
-                _separator(),
-                _text("Please Run `/verify setup` First To Set The Verification Channel."),
-            )
-        ])
-
-    veri_ch = guild.get_channel(d["veri_channel"])
-    if not veri_ch:
-        return await _v2_followup(interaction, [
-            _container(
-                _text("## Channel Not Found"),
-                _separator(),
-                _text("Verification Channel Not Found. Please Run `/verify setup` Again."),
-            )
-        ])
-
-    d["veri_grant_id"] = grant_role.id
-
-    unverified = discord.utils.get(guild.roles, name="Unverified")
-    if not unverified:
-        unverified = await guild.create_role(
-            name="Unverified",
-            color=discord.Color.from_str("#747F8D"),
-            reason="Verification System: Auto-Created Unverified Role",
-        )
-    try:
-        await guild.edit_role_positions(
-            positions={unverified: 1},
-            reason="Unverified Role Placed At Bottom Of Hierarchy",
-        )
-    except Exception as e:
-        log.warning("Could Not Reposition Unverified Role: %s", e)
-
-    d["veri_role_id"] = unverified.id
-    d["veri_enabled"] = True
-    _save_data()
-
-    locked  = 0
-    skipped = 0
-    for ch in guild.channels:
-        if not isinstance(ch, (
-            discord.TextChannel, discord.VoiceChannel,
-            discord.ForumChannel, discord.StageChannel,
-        )):
-            continue
-        try:
-            if ch.id == veri_ch.id:
-                await ch.set_permissions(
-                    unverified, view_channel=True, send_messages=False,
-                    reason="Verify Channel — Unverified Read-Only Access",
-                )
-            else:
-                await ch.set_permissions(
-                    unverified, view_channel=False,
-                    reason="Verification System: Block Unverified Members",
-                )
-            locked += 1
-        except Exception as e:
-            log.warning("Could Not Set Perms For #%s: %s", ch.name, e)
-            skipped += 1
-
-    await _v2_followup(interaction, [
-        _container(
-            _text("## Verification Enabled"),
-            _separator(),
-            _text(
-                f"**Unverified Role:** {unverified.mention}  *(Placed At Bottom Of Role List)*\n"
-                f"**Verified Role:** {grant_role.mention}\n"
-                f"**Verify Channel:** {veri_ch.mention}\n"
-                f"**Channels Locked:** {locked}  |  **Skipped:** {skipped}"
-            ),
-            _separator(),
-            _text(
-                "**How It Works:**\n"
-                "> New Member Joins  →  Auto-Assigned **Unverified** Role\n"
-                "> Unverified Members  →  Can Only See The Verify Channel\n"
-                "> Member Clicks Verify  →  Role Assigned & Unverified Removed\n\n"
-                f"Run `/verify panel` To Send The Verify Button To {veri_ch.mention}."
-            ),
-        )
-    ])
-    log.info("Verification Enabled In '%s' By %s — Grant: %s", guild.name, interaction.user, grant_role.name)
-
-
-@verify_grp.command(name="panel", description="Send The Verification Panel To The Verify Channel")
-@is_owner()
-async def verify_panel(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    guild = interaction.guild  # type: ignore
-    d     = _gdata(guild.id)
-
-    if not d.get("veri_enabled"):
-        return await _v2_followup(interaction, [
-            _container(
-                _text("## Not Enabled"),
-                _separator(),
-                _text("Verification System Is Not Enabled. Run `/verify enable` First."),
-            )
-        ])
-
-    veri_ch = guild.get_channel(d.get("veri_channel") or 0)
-    if not veri_ch:
-        return await _v2_followup(interaction, [
-            _container(
-                _text("## Channel Not Found"),
-                _separator(),
-                _text("Verification Channel Not Found. Run `/verify setup` First."),
-            )
-        ])
-
-    grant_role = guild.get_role(d.get("veri_grant_id") or 0)
-    icon_url   = (
-        guild.icon.with_size(256).url if guild.icon
-        else "https://cdn.discordapp.com/embed/avatars/0.png"
-    )
-    role_line = f"**Role Granted After Verification:** {grant_role.mention}\n" if grant_role else ""
-
-    await _v2_send(veri_ch, [  # type: ignore
-        _container(
-            _section(
-                f"## Verification Required\n"
-                f"Welcome To **{guild.name}**!\n"
-                f"To Gain Full Access To The Server, You Must First Verify Yourself.",
-                icon_url,
-            ),
-            _separator(),
-            _text(
-                "**How To Verify:**\n"
-                "> Step 1  —  Click The **Verify** Button Below\n"
-                "> Step 2  —  You Will Receive Full Access Instantly\n\n"
-                + role_line
-            ),
-            _separator(),
-            _action_row(_button("Verify", "verify:btn", style=2)),
-        )
-    ])
-
-    await _v2_followup(interaction, [
-        _container(
-            _text("## Verify Panel Sent"),
-            _separator(),
-            _text(f"The Verification Panel Has Been Sent To {veri_ch.mention}."),
-        )
-    ])
-
-
-@verify_grp.command(name="disable", description="Disable Verification & Remove All Channel Locks")
-@is_owner()
-async def verify_disable(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True, thinking=True)
-    guild = interaction.guild  # type: ignore
-    d     = _gdata(guild.id)
-    d["veri_enabled"] = False
-    _save_data()
-
-    unverified = guild.get_role(d.get("veri_role_id") or 0)
-    removed    = 0
-    if unverified:
-        for ch in guild.channels:
-            if isinstance(ch, (discord.TextChannel, discord.VoiceChannel, discord.ForumChannel, discord.StageChannel)):
-                try:
-                    await ch.set_permissions(unverified, overwrite=None, reason="Verification System Disabled")
-                    removed += 1
-                except Exception:
-                    pass
-
-    await _v2_followup(interaction, [
-        _container(
-            _text("## Verification Disabled"),
-            _separator(),
-            _text(
-                f"Removed Locks From **{removed}** Channels.\n"
-                "The Unverified Role Is Still Present — Delete It Manually If No Longer Needed."
-            ),
-        )
-    ])
-    log.info("Verification Disabled In '%s' By %s", guild.name, interaction.user)
-
-
-@verify_grp.command(
-    name="update",
-    description="Re-Apply Channel Locks To All Channels (Run After Adding New Channels)",
-)
-@is_owner()
-async def verify_update(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True, thinking=True)
-    guild = interaction.guild  # type: ignore
-    d     = _gdata(guild.id)
-
-    if not d.get("veri_enabled"):
-        return await _v2_followup(interaction, [_container(_text("## Not Enabled"), _separator(), _text("Run `/verify enable` First."))])
-
-    unverified = guild.get_role(d.get("veri_role_id") or 0)
-    if not unverified:
-        return await _v2_followup(interaction, [_container(_text("## Unverified Role Not Found"), _separator(), _text("The Unverified Role Was Deleted. Please Run `/verify enable` Again."))])
-
-    veri_ch = guild.get_channel(d.get("veri_channel") or 0)
-    if not veri_ch:
-        return await _v2_followup(interaction, [_container(_text("## Verify Channel Not Found"), _separator(), _text("The Verify Channel Was Deleted. Please Run `/verify setup` Again."))])
-
-    updated = 0
-    skipped = 0
-    for ch in guild.channels:
-        if not isinstance(ch, (discord.TextChannel, discord.VoiceChannel, discord.ForumChannel, discord.StageChannel)):
-            continue
-        try:
-            if ch.id == veri_ch.id:
-                await ch.set_permissions(unverified, view_channel=True, send_messages=False, reason="Verify Update")
-            else:
-                await ch.set_permissions(unverified, view_channel=False, reason="Verify Update")
-            updated += 1
-        except Exception as e:
-            log.warning("Could Not Update Perms For #%s: %s", ch.name, e)
-            skipped += 1
-
-    await _v2_followup(interaction, [
-        _container(
-            _text("## Verification Updated"),
-            _separator(),
-            _text(
-                f"**Unverified Role:** {unverified.mention}\n"
-                f"**Verify Channel:** {veri_ch.mention}\n"
-                f"**Channels Updated:** {updated}  |  **Skipped:** {skipped}"
-            ),
-            _separator(),
-            _text("All Channels Have Been Re-Locked For The Unverified Role."),
-        )
-    ])
-
-
-bot.tree.add_command(verify_grp)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  /payment Commands
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                          /payment COMMANDS                                  ║
+# ╠══════════════════════════════════════════════════════════════════════════════╣
+# ║  /payment setup        — Configure VietQR + Casso                           ║
+# ║  /payment create       — Generate a QR payment request                      ║
+# ║  /payment check        — Check payment status by ref                        ║
+# ║  /payment confirm      — Manually confirm a payment (owner)                 ║
+# ║  /payment cancel       — Cancel a pending payment (owner)                   ║
+# ║  /payment list         — List all payments with filter                      ║
+# ║  /payment announce_all — Send daily summary to channel                      ║
+# ║  /payment info         — Show current payment config                        ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 payment_grp = app_commands.Group(
     name="payment",
@@ -1813,7 +1468,7 @@ payment_grp = app_commands.Group(
 
 @payment_grp.command(name="setup", description="Configure The VietQR AutoBank Payment System")
 @app_commands.describe(
-    bank_id="VietQR Bank Code (e.g. MB, VCB, TCB, VPB, TPB, ACB)",
+    bank_id="VietQR Bank Code (E.g. MB, VCB, TCB, VPB, TPB, ACB)",
     account_no="Bank Account Number",
     account_name="Account Holder Name (Shown On QR)",
     casso_key="Casso API Key For Auto-Confirm (Get From casso.vn)",
@@ -1832,7 +1487,7 @@ async def payment_setup(
     confirm_role:  Optional[discord.Role] = None,
     timeout:       int = 10,
 ):
-    d = _gdata(interaction.guild_id)
+    d             = _gdata(interaction.guild_id)
     bank_id_upper = bank_id.strip().upper()
 
     d["pay_bank_id"]      = bank_id_upper
@@ -1856,24 +1511,25 @@ async def payment_setup(
                 f"**Ping Role:** {confirm_role.mention if confirm_role else '`None`'}\n"
                 f"**Casso API Key:** `{'*' * min(len(casso_key), 8)}...` *(Hidden)*\n"
                 f"**Payment Timeout:** `{timeout} Minutes`\n\n"
-                f"Auto-Confirm: Bot Will Poll Casso Every 15s And Confirm Matching Payments.\n"
-                f"Run `/payment create` To Generate A QR Code."
+                "Auto-Confirm: Bot Will Poll Casso Every 15s And Confirm Matching Payments.\n"
+                "Run `/payment create` To Generate A QR Code."
             ),
         )
     ])
-    log.info("Payment Setup By %s In '%s' — Bank: %s Account: %s", interaction.user, interaction.guild.name, bank_id_upper, account_no)
+    log.info(
+        "Payment Setup By %s In '%s' — Bank: %s  Account: %s",
+        interaction.user, interaction.guild.name, bank_id_upper, account_no,
+    )
 
 
 @payment_grp.command(name="create", description="Generate A VietQR Payment QR Code")
 @app_commands.describe(
-    amount="Amount In VND (e.g. 50000)",
-    description="Payment Description / Note",
+    amount="Amount In VND (E.g. 50000)",
     user="Who Is Paying (Optional, Defaults To You)",
 )
 async def payment_create(
     interaction: discord.Interaction,
     amount:      int,
-    description: str,
     user:        Optional[discord.Member] = None,
 ):
     await interaction.response.defer(ephemeral=False, thinking=True)
@@ -1895,7 +1551,6 @@ async def payment_create(
     account_no = d["pay_account_no"]
     acc_name   = d["pay_account_name"]
     ref        = _gen_ref(interaction.guild_id, payer.id)
-    # Ensure unique ref
     while ref in d["payments"]:
         ref = _gen_ref(interaction.guild_id, payer.id)
 
@@ -1903,11 +1558,10 @@ async def payment_create(
     ts     = int(time.time())
     expire = ts + d.get("pay_timeout", 600)
 
-    # Send the QR message first (we need the message ID)
     channel: discord.TextChannel = interaction.channel  # type: ignore
     msg_data = await _v2_send(channel, [
         _container(
-            _text(f"## 🏦 Payment Request"),
+            _text("## 🏦 Payment Request"),
             _separator(),
             _section(
                 f"**Payer:** {payer.mention}\n"
@@ -1915,18 +1569,17 @@ async def payment_create(
                 f"**Bank:** `{bank_id}` — `{account_no}`\n"
                 f"**Account Name:** `{acc_name}`\n"
                 f"**Transfer Description:** `{ref}`\n"
-                f"**Note:** {description}\n\n"
                 f"⏰ Expires <t:{expire}:R>",
                 qr_url,
             ),
             _separator(),
             _text(
                 "**Instructions:**\n"
-                f"> 1️⃣  Open Your Banking App\n"
-                f"> 2️⃣  Scan The QR Code On The Right\n"
+                "> 1️⃣  Open Your Banking App\n"
+                "> 2️⃣  Scan The QR Code On The Right\n"
                 f"> 3️⃣  Enter Exactly This Transfer Description: **`{ref}`** — Required!\n"
-                f"> 4️⃣  Bot Will Auto-Confirm Within A Few Seconds\n\n"
-                f"-# Do Not Change The Transfer Description Or Payment Will Not Be Detected."
+                "> 4️⃣  Bot Will Auto-Confirm Within A Few Seconds\n\n"
+                "-# Do Not Change The Transfer Description Or Payment Will Not Be Detected."
             ),
             _separator(),
             _action_row(_button("❌ Cancel Payment", f"payment:cancel:{ref}", style=4)),
@@ -1934,22 +1587,21 @@ async def payment_create(
     ])
 
     msg_id = int(msg_data.get("id", 0))
-    _payment_create(interaction.guild_id, payer.id, amount, description, channel.id, msg_id, ref=ref)
+    _payment_create(interaction.guild_id, payer.id, amount, "", channel.id, msg_id, ref=ref)
 
-    # Delete the thinking followup (it was already sent via _v2_send)
     try:
         await interaction.delete_original_response()
     except Exception:
         pass
 
     log.info(
-        "Payment %s created — %s VND — Payer: %s — Bank: %s %s",
+        "Payment %s Created — %s VND — Payer: %s — Bank: %s %s",
         ref, amount, payer, bank_id, account_no,
     )
 
 
 @payment_grp.command(name="check", description="Manually Check A Payment Status By Reference Code")
-@app_commands.describe(ref="Payment Reference Code (e.g. PAYAB1234)")
+@app_commands.describe(ref="Payment Reference Code (E.g. PAYAB1234)")
 async def payment_check(interaction: discord.Interaction, ref: str):
     d = _gdata(interaction.guild_id)
     p = d["payments"].get(ref.upper())
@@ -1958,7 +1610,12 @@ async def payment_check(interaction: discord.Interaction, ref: str):
             f"Payment `{ref}` Not Found.", ephemeral=True
         )
 
-    status_icon = {"pending": "⏳", "confirmed": "✅", "expired": "⏰", "cancelled": "❌"}.get(p["status"], "❓")
+    status_icon = {
+        "pending":   "⏳",
+        "confirmed": "✅",
+        "expired":   "⏰",
+        "cancelled": "❌",
+    }.get(p["status"], "❓")
     payer = interaction.guild.get_member(p["user_id"])
     ts    = int(p["created_at"])
 
@@ -1971,7 +1628,7 @@ async def payment_check(interaction: discord.Interaction, ref: str):
                 f"**Status:** {status_icon} {p['status'].upper()}\n"
                 f"**Amount:** `{p['amount']:,} VND`\n"
                 f"**Payer:** {payer.mention if payer else 'ID: ' + str(p['user_id'])}\n"
-                f"**Description:** {p['description']}\n"
+                
                 f"**Created:** <t:{ts}:F>\n"
                 + (f"**TX ID:** `{p['confirmed_by_tx']}`" if p.get("confirmed_by_tx") else "")
             ),
@@ -1983,13 +1640,11 @@ async def payment_check(interaction: discord.Interaction, ref: str):
 @app_commands.describe(ref="Payment Reference Code To Confirm")
 @is_owner()
 async def payment_confirm(interaction: discord.Interaction, ref: str):
-    d        = _gdata(interaction.guild_id)
-    ref_up   = ref.strip().upper()
-    payments = d["payments"]
+    d          = _gdata(interaction.guild_id)
+    ref_up     = ref.strip().upper()
+    payments   = d["payments"]
 
-    # Case-insensitive search
     matched_key = next((k for k in payments if k.upper() == ref_up), None)
-
     if not matched_key:
         pending_refs = [k for k, v in payments.items() if v["status"] == "pending"]
         hint = (
@@ -2020,7 +1675,9 @@ async def payment_cancel(interaction: discord.Interaction, ref: str):
     d = _gdata(interaction.guild_id)
     p = d["payments"].get(ref.upper())
     if not p:
-        return await interaction.response.send_message(f"Payment `{ref}` Not Found.", ephemeral=True)
+        return await interaction.response.send_message(
+            f"Payment `{ref}` Not Found.", ephemeral=True
+        )
     if p["status"] != "pending":
         return await interaction.response.send_message(
             f"Payment Is Already **{p['status'].upper()}**.", ephemeral=True
@@ -2078,7 +1735,10 @@ async def payment_list(interaction: discord.Interaction, status: str = "all"):
     ])
 
 
-@payment_grp.command(name="announce_all", description="Manually Send Daily Payment Summary To A Channel")
+@payment_grp.command(
+    name="announce_all",
+    description="Manually Send Daily Payment Summary To A Channel",
+)
 @app_commands.describe(
     channel="Channel To Send The Summary (Also Saves As Auto-Announce Channel)",
     note="Extra Note To Include (Optional)",
@@ -2091,15 +1751,15 @@ async def payment_announce_all(
 ):
     await interaction.response.defer(ephemeral=True, thinking=True)
     d = _gdata(interaction.guild_id)
-
-    # Save this channel as the auto-announce channel for daily 12:00 task
     d["pay_announce_channel"] = channel.id
     _save_data()
 
-    await _send_daily_summary(interaction.guild_id, channel.id, note=note, actor=str(interaction.user))
+    await _send_daily_summary(
+        interaction.guild_id, channel.id, note=note, actor=str(interaction.user)
+    )
     await interaction.followup.send(
         f"Summary Sent To {channel.mention}.\n"
-        f"-# This Channel Is Now Set As The Daily 12:00 Auto-Announce Channel.",
+        "-# This Channel Is Now Set As The Daily 00:00 Auto-Announce Channel.",
         ephemeral=True,
     )
 
@@ -2116,7 +1776,6 @@ async def payment_info(interaction: discord.Interaction):
     log_ch    = interaction.guild.get_channel(d.get("pay_log_channel") or 0)
     conf_role = interaction.guild.get_role(d.get("pay_confirm_role") or 0)
     timeout_m = d.get("pay_timeout", 600) // 60
-
     pending   = sum(1 for p in d["payments"].values() if p["status"] == "pending")
     confirmed = sum(1 for p in d["payments"].values() if p["status"] == "confirmed")
     revenue   = sum(p["amount"] for p in d["payments"].values() if p["status"] == "confirmed")
@@ -2148,150 +1807,9 @@ async def payment_info(interaction: discord.Interaction):
 bot.tree.add_command(payment_grp)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  /owner Commands
-# ═══════════════════════════════════════════════════════════════════════════════
-
-owner_grp = app_commands.Group(
-    name="owner",
-    description="Owner Only Commands",
-    default_permissions=discord.Permissions(0),
-)
-
-
-@owner_grp.command(name="status", description="View Full Bot Statistics")
-@is_owner()
-async def owner_status(interaction: discord.Interaction):
-    total_open = sum(
-        1 for d in _STORE.values()
-        for td in d["tickets"].values() if td.get("open")
-    )
-    total_all    = sum(len(d["tickets"]) for d in _STORE.values())
-    total_pay    = sum(len(d.get("payments", {})) for d in _STORE.values())
-    total_revenue = sum(
-        p["amount"] for d in _STORE.values()
-        for p in d.get("payments", {}).values() if p["status"] == "confirmed"
-    )
-    ts = int(datetime.now(timezone.utc).timestamp())
-
-    await _v2_respond(interaction, [
-        _container(
-            _text("## Bot Statistics"),
-            _separator(),
-            _text(
-                f"**Guilds:** {len(bot.guilds)}\n"
-                f"**Open Tickets:** {total_open}\n"
-                f"**Total Tickets:** {total_all}\n"
-                f"**Total Payments:** {total_pay}\n"
-                f"**Total Revenue:** `{total_revenue:,} VND`\n"
-                f"**Latency:** {bot.latency * 1000:.1f}ms\n"
-                f"**Owner ID:** `{OWNER_ID}`"
-            ),
-            _separator(),
-            _text(f"-# <t:{ts}:F>"),
-        )
-    ])
-
-
-@owner_grp.command(name="guilds", description="List All Servers Using This Bot")
-@is_owner()
-async def owner_guilds(interaction: discord.Interaction):
-    lines = [
-        f"`{g.id}`  **{g.name}**  —  {g.member_count} Members"
-        for g in bot.guilds[:20]
-    ]
-    ts = int(datetime.now(timezone.utc).timestamp())
-    await _v2_respond(interaction, [
-        _container(
-            _text(f"## Guilds  ({len(bot.guilds)})"),
-            _separator(),
-            _text("\n".join(lines) or "None"),
-            _separator(),
-            _text(f"-# <t:{ts}:F>"),
-        )
-    ])
-
-
-@owner_grp.command(name="broadcast", description="Send An Announcement To All Panel Channels")
-@app_commands.describe(message="Announcement Content")
-@is_owner()
-async def owner_broadcast(interaction: discord.Interaction, message: str):
-    await interaction.response.defer(ephemeral=True, thinking=True)
-    sent, failed = 0, 0
-    ts = int(datetime.now(timezone.utc).timestamp())
-    for guild in bot.guilds:
-        d = _STORE.get(guild.id)
-        if not d or not d.get("panel_channel"):
-            continue
-        ch = guild.get_channel(d["panel_channel"])
-        if not ch:
-            continue
-        try:
-            await _v2_send(ch, [  # type: ignore
-                _container(
-                    _text("## Announcement"),
-                    _separator(),
-                    _text(message),
-                    _separator(),
-                    _text(f"-# <t:{ts}:F>"),
-                )
-            ])
-            sent += 1
-        except Exception as e:
-            log.warning("Broadcast Failed For %s: %s", guild.name, e)
-            failed += 1
-    await interaction.followup.send(
-        f"Sent To **{sent}** Servers. Failed: **{failed}**", ephemeral=True
-    )
-
-
-@owner_grp.command(name="reset_guild", description="Delete All Data For A Server")
-@app_commands.describe(guild_id="The Server ID To Reset")
-@is_owner()
-async def owner_reset_guild(interaction: discord.Interaction, guild_id: str):
-    gid = int(guild_id)
-    if gid in _STORE:
-        _STORE.pop(gid)
-        await interaction.response.send_message(
-            f"Data For Guild `{guild_id}` Has Been Reset.", ephemeral=True
-        )
-    else:
-        await interaction.response.send_message(
-            f"No Data Found For Guild `{guild_id}`.", ephemeral=True
-        )
-
-
-@owner_grp.command(name="close_all", description="Force Close All Open Tickets In This Server")
-@is_owner()
-async def owner_close_all(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True, thinking=True)
-    guild: discord.Guild = interaction.guild  # type: ignore
-    d            = _gdata(guild.id)
-    open_tickets = {cid: td for cid, td in d["tickets"].items() if td.get("open")}
-    if not open_tickets:
-        return await interaction.followup.send("No Open Tickets Found.", ephemeral=True)
-    closed = 0
-    for ch_id in list(open_tickets.keys()):
-        ch = guild.get_channel(ch_id)
-        if ch:
-            try:
-                await ch.delete(reason="Owner: Force Close All")
-            except Exception:
-                pass
-        d["tickets"].pop(ch_id, None)
-        closed += 1
-    await interaction.followup.send(f"Closed **{closed}** Tickets.", ephemeral=True)
-
-
-bot.tree.add_command(owner_grp)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Component Interaction Handler — Payment Cancel Button
-# ═══════════════════════════════════════════════════════════════════════════════
-#
-#  The cancel button uses a dynamic custom_id: "payment:cancel:{ref}"
-#  Handled via on_interaction instead of a persistent View class.
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║               COMPONENT INTERACTION — PAYMENT CANCEL BUTTON                ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
@@ -2324,7 +1842,6 @@ async def on_interaction(interaction: discord.Interaction):
     _payment_expire(guild_id, ref)
     await interaction.response.defer()
 
-    ts = int(time.time())
     await _v2_edit_msg(p["channel_id"], p["message_id"], [
         _container(
             _text("## ❌ Payment Cancelled"),
@@ -2347,17 +1864,18 @@ async def on_interaction(interaction: discord.Interaction):
                     log.warning("Could Not Delete Cancelled Payment Message: %s", r.status)
     except Exception as e:
         log.warning("Could Not Delete Cancelled Payment Message: %s", e)
-    log.info("Payment %s cancelled by %s", ref, interaction.user)
+
+    log.info("Payment %s Cancelled By %s", ref, interaction.user)
 
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Error Handler
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                            ERROR HANDLER                                    ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 @bot.tree.error
 async def on_app_command_error(
-    interaction: discord.Interaction, error: app_commands.AppCommandError
+    interaction: discord.Interaction,
+    error: app_commands.AppCommandError,
 ):
     if isinstance(error, app_commands.MissingPermissions):
         msg = "You Do Not Have Permission To Use This Command."
@@ -2374,9 +1892,9 @@ async def on_app_command_error(
         pass
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Prefix Commands
-# ═══════════════════════════════════════════════════════════════════════════════
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                          PREFIX COMMANDS                                    ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 @bot.command(name="sync")
 async def cmd_sync(ctx: commands.Context):
@@ -2388,9 +1906,30 @@ async def cmd_sync(ctx: commands.Context):
     log.info("!sync Called By %s — %d Commands Synced", ctx.author, len(synced))
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Entry Point
-# ═══════════════════════════════════════════════════════════════════════════════
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                            SLASH COMMANDS                                   ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+@bot.tree.command(name="ping", description="Check Bot Latency")
+async def slash_ping(interaction: discord.Interaction):
+    latency_ms = round(bot.latency * 1000)
+    ts = int(datetime.now(timezone.utc).timestamp())
+    await _v2_respond(interaction, [
+        _container(
+            _text("## 🏓 Pong!"),
+            _separator(),
+            _text(
+                f"**Latency:** `{latency_ms}ms`\n"
+                f"-# <t:{ts}:F>"
+            ),
+        )
+    ], ephemeral=False)
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                             ENTRY POINT                                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
 
 if __name__ == "__main__":
     log.info("Starting Bot  |  Owner ID: %d", OWNER_ID)
