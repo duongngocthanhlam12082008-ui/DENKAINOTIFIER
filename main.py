@@ -44,25 +44,9 @@ PREFIX   = "!"
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
 TICKET_CATEGORIES = {
-    "support": {
-        "label":       "Technical Support",
-        "description": "Technical Issues, Bugs, Installation",
-    },
-    "billing": {
-        "label":       "Billing",
-        "description": "Invoices, Transactions, Refunds",
-    },
-    "report": {
-        "label":       "Report Violation",
-        "description": "Report Users Or Content",
-    },
-    "general": {
-        "label":       "General Inquiry",
-        "description": "General Questions, Feedback",
-    },
-    "partner": {
-        "label":       "Partnership",
-        "description": "Collaboration Proposals, Advertising",
+    "autojoiner": {
+        "label":       "Autojoiner Purchase",
+        "description": "Purchase Draken Balance",
     },
 }
 
@@ -134,16 +118,8 @@ S = {
     "list_unclaimed":         "Unclaimed",
 
     # ── Category Labels ────────────────────────────────────────────────────────
-    "cat_support_label":      "Technical Support",
-    "cat_support_desc":       "Technical Issues, Bugs, Installation",
-    "cat_billing_label":      "Billing",
-    "cat_billing_desc":       "Invoices, Transactions, Refunds",
-    "cat_report_label":       "Report Violation",
-    "cat_report_desc":        "Report Users Or Content",
-    "cat_general_label":      "General Inquiry",
-    "cat_general_desc":       "General Questions, Feedback",
-    "cat_partner_label":      "Partnership",
-    "cat_partner_desc":       "Collaboration Proposals, Advertising",
+    "cat_autojoiner_label":   "Autojoiner Purchase",
+    "cat_autojoiner_desc":    "Purchase Draken Balance",
 }
 
 def t(key: str) -> str:
@@ -1231,22 +1207,21 @@ async def ticket_panel(interaction: discord.Interaction):
 
     channel: discord.TextChannel = interaction.channel  # type: ignore
     select_options = [
-        {"label": _cat_label(k), "value": k, "description": _cat_desc(k)}
-        for k in TICKET_CATEGORIES
+        {
+            "label":       "Autojoiner Purchase",
+            "value":       "autojoiner",
+            "description": "Purchase Draken Balance",
+            "emoji":       {"id": "1509227174467735626"},
+        }
     ]
-    icon_url = (
-        interaction.guild.icon.with_size(256).url
-        if interaction.guild.icon
-        else "https://cdn.discordapp.com/embed/avatars/0.png"
-    )
 
     await _v2_send(channel, [
         _container(
             _text(
                 "## Draken Notifier\n"
-                "⊕ Purchase Dragon Balance Below.\n"
-                "🖥 Balance Can Be Used To Purchase PRO Slot Time.\n"
-                "> Select A Product From The Dropdown Menu Below."
+                "<:arrow:1509228082718834838> Top Up Your Draken Balance Below.\n"
+                "<:wallet:1509227697505697842> Use Your Balance To Buy PRO Slot Time.\n"
+                "> Pick A Product From The Dropdown Below To Get Started."
             ),
             _separator(),
             _select(
@@ -1256,9 +1231,9 @@ async def ticket_panel(interaction: discord.Interaction):
             ),
             _separator(),
             _text(
-                "✓ Minimum Top-Up: **$1.00**\n"
-                "✓ Payments Are Detected Automatically\n"
-                "✓ Balance Never Expires Unless Spent"
+                "<:check:1509227384606425118> Minimum Top-Up: **$1.00**\n"
+                "<:check:1509227384606425118> Payments Are Detected Automatically\n"
+                "<:check:1509227384606425118> Balance Never Expires Unless Spent"
             ),
         )
     ])
