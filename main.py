@@ -6,7 +6,7 @@
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║  Install  :  pip install discord.py aiohttp                                 ║
 ║  Run      :  python bot.py                                                   ║
-║  Commands :  /ticket  /welcome  /payment  /ping                              ║
+║  Commands :  /ticket  /welcome  /leave  /payment  /ping  /invites           ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -44,9 +44,17 @@ PREFIX   = "!"
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
 TICKET_CATEGORIES = {
-    "autojoiner": {
-        "label":       "Autojoiner Purchase",
-        "description": "Purchase Draken Balance",
+    "general": {
+        "label":       "General Support",
+        "description": "Questions And General Help",
+    },
+    "slot_transfer": {
+        "label":       "Slot Transfers",
+        "description": "Moving Or Transferring Slots",
+    },
+    "deposit": {
+        "label":       "Deposit Support",
+        "description": "Issues With Deposits Or Balances",
     },
 }
 
@@ -59,7 +67,7 @@ S = {
     # ── Panel ──────────────────────────────────────────────────────────────────
     "panel_title":            "Support Center",
     "panel_categories_title": "### Available Categories",
-    "panel_placeholder":      "Select A Ticket Category...",
+    "panel_placeholder":      "Choose Ticket Type...",
 
     # ── Modal ──────────────────────────────────────────────────────────────────
     "modal_title":            "Create A Support Ticket",
@@ -118,8 +126,12 @@ S = {
     "list_unclaimed":         "Unclaimed",
 
     # ── Category Labels ────────────────────────────────────────────────────────
-    "cat_autojoiner_label":   "Autojoiner Purchase",
-    "cat_autojoiner_desc":    "Purchase Draken Balance",
+    "cat_general_label":          "General Support",
+    "cat_general_desc":           "Questions And General Help",
+    "cat_slot_transfer_label":    "Slot Transfers",
+    "cat_slot_transfer_desc":     "Moving Or Transferring Slots",
+    "cat_deposit_label":          "Deposit Support",
+    "cat_deposit_desc":           "Issues With Deposits Or Balances",
 }
 
 def t(key: str) -> str:
@@ -191,8 +203,8 @@ def _button(label: str, custom_id: str, style: int = 2) -> dict:
 def _action_row(*buttons) -> dict:
     return {"type": 1, "components": list(buttons)}
 
-def _container(*components) -> dict:
-    return {"type": 17, "components": list(components)}
+def _container(*components, accent_color: int = 0xFFFFFF) -> dict:
+    return {"type": 17, "accent_color": accent_color, "components": list(components)}
 
 def _section(text_content: str, thumbnail_url: str) -> dict:
     return {
@@ -263,7 +275,7 @@ _CONFIG_KEYS = {
     "counter", "welcome_channel", "welcome_purchase", "welcome_rules",
     "welcome_news", "pay_bank_id", "pay_account_no", "pay_account_name",
     "pay_casso_key", "pay_log_channel", "pay_confirm_role", "pay_timeout",
-    "pay_announce_channel",
+    "pay_announce_channel", "leave_channel",
 }
 
 _STORE: dict[int, dict] = {}
@@ -279,6 +291,7 @@ _DEFAULTS: dict = {
     "welcome_purchase": None,
     "welcome_rules":    None,
     "welcome_news":     None,
+    "leave_channel":    None,
     "pay_bank_id":      "ICB",
     "pay_account_no":   "0907617630",
     "pay_account_name": "Nguyen Van A",
@@ -472,7 +485,7 @@ class CategorySelect(discord.ui.Select):
             for k, v in TICKET_CATEGORIES.items()
         ]
         super().__init__(
-            placeholder="Select A Ticket Category...",
+            placeholder="Choose Ticket Type...",
             min_values=1,
             max_values=1,
             options=options,
@@ -510,6 +523,7 @@ class CreateModal(discord.ui.Modal, title="Create A Support Ticket"):
             label=t("modal_detail_label"),
             placeholder=t("modal_detail_ph"),
             style=discord.TextStyle.paragraph,
+            min_length=20,
             max_length=1000,
             required=True,
         )
@@ -802,7 +816,6 @@ async def _notify_payment_confirmed(guild_id: int, ref: str):
                     _section(
                         f"**Reference:** `{ref}`\n"
                         f"**Amount:** `{p['amount']:,} VND`\n"
-                        
                         f"**Payer:** {member.mention if member else 'ID: ' + str(p['user_id'])}\n"
                         f"**TX ID:** `{p.get('confirmed_by_tx', 'N/A')}`",
                         member.display_avatar.with_size(256).url if member
@@ -1206,35 +1219,30 @@ async def ticket_panel(interaction: discord.Interaction):
         return await interaction.followup.send(t("err_no_setup"), ephemeral=True)
 
     channel: discord.TextChannel = interaction.channel  # type: ignore
+
+    # Build select options from TICKET_CATEGORIES
     select_options = [
         {
-            "label":       "Autojoiner Purchase",
-            "value":       "autojoiner",
-            "description": "Purchase Draken Balance",
-            "emoji":       {"id": "1509227174467735626"},
+            "label":       v["label"],
+            "value":       k,
+            "description": v["description"],
         }
+        for k, v in TICKET_CATEGORIES.items()
     ]
 
     await _v2_send(channel, [
         _container(
             _text(
-                "## Draken Notifier\n"
-                "<:arrow:1509228082718834838> Top Up Your Draken Balance Below.\n"
-                "<:wallet:1509227697505697842> Use Your Balance To Buy PRO Slot Time.\n"
-                "> Pick A Product From The Dropdown Below To Get Started."
+                "## Support\n\n"
+                "Choose a ticket type, then fill out the form "
+                "(**Enter your issue** — at least **20** characters)."
             ),
-            _separator(),
             _select(
                 custom_id="ticket:category_select",
-                placeholder="Select A Product...",
+                placeholder="Choose Ticket Type...",
                 options=select_options,
             ),
-            _separator(),
-            _text(
-                "<:check:1509227384606425118> Minimum Top-Up: **$1.00**\n"
-                "<:check:1509227384606425118> Payments Are Detected Automatically\n"
-                "<:check:1509227384606425118> Balance Never Expires Unless Spent"
-            ),
+            _text("-# Limit **1** open ticket per member."),
         )
     ])
 
@@ -1603,7 +1611,6 @@ async def payment_check(interaction: discord.Interaction, ref: str):
                 f"**Status:** {status_icon} {p['status'].upper()}\n"
                 f"**Amount:** `{p['amount']:,} VND`\n"
                 f"**Payer:** {payer.mention if payer else 'ID: ' + str(p['user_id'])}\n"
-                
                 f"**Created:** <t:{ts}:F>\n"
                 + (f"**TX ID:** `{p['confirmed_by_tx']}`" if p.get("confirmed_by_tx") else "")
             ),
@@ -1881,7 +1888,6 @@ async def cmd_sync(ctx: commands.Context):
     log.info("!sync Called By %s — %d Commands Synced", ctx.author, len(synced))
 
 
-
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║                            SLASH COMMANDS                                   ║
 # ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -1900,6 +1906,150 @@ async def slash_ping(interaction: discord.Interaction):
             ),
         )
     ], ephemeral=False)
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                        EVENT — MEMBER LEAVE (on_member_remove)              ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+@bot.event
+async def on_member_remove(member: discord.Member):
+    guild = member.guild
+    d     = _gdata(guild.id)
+
+    leave_ch_id = d.get("leave_channel")
+    if not leave_ch_id:
+        return
+
+    lch = guild.get_channel(leave_ch_id)
+    if not lch:
+        return
+
+    ts         = int(datetime.now(timezone.utc).timestamp())
+    avatar_url = member.display_avatar.with_size(256).url
+
+    await _v2_send(lch, [  # type: ignore
+        _container(
+            _text(f"## Goodbye From {guild.name}!"),
+            _separator(),
+            _section(
+                f"**{member.mention} Has Left The Server.**\n"
+                f"> We Now Have `{guild.member_count}` Members.",
+                avatar_url,
+            ),
+            _separator(),
+            _text(f"-# <t:{ts}:F>"),
+        )
+    ])
+    log.info("Leave Message Sent For %s In '%s'", member, guild.name)
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                       /leave setup COMMAND                                  ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+leave_grp = app_commands.Group(
+    name="leave",
+    description="Leave Message System",
+    default_permissions=discord.Permissions(0),
+)
+
+
+@leave_grp.command(name="setup", description="Configure The Leave Message System")
+@app_commands.describe(channel="Channel To Send Leave Messages In")
+@is_owner()
+async def leave_setup(
+    interaction: discord.Interaction,
+    channel:     discord.TextChannel,
+):
+    d = _gdata(interaction.guild_id)
+    d["leave_channel"] = channel.id
+    _save_data()
+
+    await _v2_respond(interaction, [
+        _container(
+            _text("## Leave System Configured"),
+            _separator(),
+            _text(
+                f"**Leave Channel:** {channel.mention}\n\n"
+                "Members Will Now Receive A Goodbye Message When They Leave."
+            ),
+        )
+    ])
+    log.info("Leave Setup By %s In '%s'", interaction.user, interaction.guild.name)
+
+
+bot.tree.add_command(leave_grp)
+
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║                          /invites COMMAND                                   ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+@bot.tree.command(name="invites", description="Show Who Invited A Member To This Server")
+@app_commands.describe(
+    member="Member To Look Up",
+    channel="Channel To Send The Result (Defaults To Current Channel)",
+)
+@is_owner()
+async def slash_invites(
+    interaction: discord.Interaction,
+    member:      discord.Member,
+    channel:     Optional[discord.TextChannel] = None,
+):
+    await interaction.response.defer(ephemeral=True, thinking=True)
+
+    guild   = interaction.guild
+    target  = channel or interaction.channel  # type: ignore
+    ts      = int(datetime.now(timezone.utc).timestamp())
+
+    try:
+        invites = await guild.invites()
+    except discord.Forbidden:
+        return await interaction.followup.send(
+            "❌ Missing Permission To View Invites. Please Grant The Bot `Manage Guild` Permission.",
+            ephemeral=True,
+        )
+
+    # Find which invite(s) this member could have used (match by usage tracking)
+    # Since Discord doesn't directly expose who used which invite, we show all
+    # active inviters ranked by usage count as a best-effort lookup.
+    inviter_map: dict[int, tuple[discord.Member | None, int, int]] = {}
+    for inv in invites:
+        if inv.inviter is None:
+            continue
+        uid = inv.inviter.id
+        uses = inv.uses or 0
+        if uid not in inviter_map:
+            inviter_map[uid] = (guild.get_member(uid), uses, 1)
+        else:
+            prev_m, prev_u, prev_c = inviter_map[uid]
+            inviter_map[uid] = (prev_m, prev_u + uses, prev_c + 1)
+
+    # Check if member's join date can be correlated — show top inviters instead
+    rows = []
+    for uid, (inv_member, uses, links) in sorted(inviter_map.items(), key=lambda x: -x[1][1])[:10]:
+        name = inv_member.mention if inv_member else f"<@{uid}>"
+        rows.append(f"> {name} — `{uses}` Joins  ·  `{links}` Link(s)")
+
+    body = "\n".join(rows) if rows else "> No Active Invite Links Found."
+
+    await _v2_send(target, [
+        _container(
+            _section(
+                f"## 📨 Invite Lookup — {member.mention}\n\n"
+                f"**Checking Who Invited:** {member.mention}\n"
+                f"**Server Invite Leaderboard:**\n{body}\n\n"
+                f"-# <t:{ts}:F>",
+                member.display_avatar.with_size(256).url,
+            ),
+        )
+    ])
+
+    await interaction.followup.send(
+        f"Invite Info Sent To {target.mention}.", ephemeral=True
+    )
+    log.info("Invites Lookup For %s By %s — Sent To #%s", member, interaction.user, target)
 
 
 # ╔══════════════════════════════════════════════════════════════════════════════╗
